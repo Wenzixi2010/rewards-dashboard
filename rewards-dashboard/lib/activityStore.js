@@ -497,7 +497,7 @@ class ActivityStore {
   /** Fire-and-forget wrapper for event handlers. */
   syncSoon(client, status) {
     this.sync(client, status).catch((e) =>
-      this.log("warn", `Activity sync failed: ${e.message}`),
+      this.log("warn", `活动同步失败：${e.message}`),
     );
   }
 }

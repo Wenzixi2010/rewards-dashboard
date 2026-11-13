@@ -1,6 +1,8 @@
 import * as U from "../util.js";
 import { cached } from "../api.js";
 
+const SESSION_PLATFORM_LABEL = { desktop: "桌面端", mobile: "移动端" };
+
 let rootEl = null;
 let context = null;
 let payload = null;
@@ -14,7 +16,7 @@ function render() {
   if (!rootEl || !payload) return;
 
   U.$("#diagMeta", rootEl).textContent = payload.dir
-    ? `${payload.count} capture${payload.count === 1 ? "" : "s"} in ${payload.dir}`
+    ? `${U.fmtNumber(payload.count)} 份错误记录，目录：${payload.dir}`
     : "";
 
   const list = U.$("#diagList", rootEl);
@@ -22,7 +24,7 @@ function render() {
 
   if (!entries.length) {
     list.innerHTML =
-      '<li class="empty-note">No error captures \u2014 nothing has gone wrong badly enough to be worth a screenshot. Captures need <code>errorDiagnostics</code> enabled in the bot\u2019s config.</li>';
+      '<li class="empty-note">暂无错误记录。启用机器人配置中的 <code>errorDiagnostics</code> 后，发生相关错误时会保存截图和诊断文件。</li>';
     return;
   }
 
@@ -30,29 +32,29 @@ function render() {
     .map((entry) => {
       const isOpen = open === entry.name;
       const badges = [
-        entry.hasScreenshot ? '<span class="tag-mini">screenshot</span>' : "",
+        entry.hasScreenshot ? '<span class="tag-mini">截图</span>' : "",
         entry.hasError ? '<span class="tag-mini">error.txt</span>' : "",
         entry.hasHtml ? '<span class="tag-mini">dump.html</span>' : "",
       ].join("");
 
       const firstLine =
         (entry.error || "").split("\n").find((l) => l.trim()) ||
-        "No error text captured.";
+        "未记录错误文本。";
 
       const body = isOpen
         ? `<div class="diag-body">
                     ${entry.hasError
           ? `<pre class="diag-pre">${U.escapeHtml(entry.error || "")}</pre>`
-          : '<p class="empty-note">No error.txt in this capture.</p>'
+          : '<p class="empty-note">此错误记录中没有 error.txt。</p>'
         }
                     ${entry.hasScreenshot
           ? `<a class="diag-shot" href="${U.escapeAttr(diagUrl(entry.name, "screenshot.png"))}" target="_blank" rel="noopener">
-                                 <img src="${U.escapeAttr(diagUrl(entry.name, "screenshot.png"))}" alt="Screenshot captured when ${U.escapeAttr(entry.name)} failed" loading="lazy">
+                                 <img src="${U.escapeAttr(diagUrl(entry.name, "screenshot.png"))}" alt="${U.escapeAttr(entry.name)} 发生错误时保存的截图" loading="lazy">
                                </a>`
           : ""
         }
                     ${entry.hasHtml
-          ? `<p><a class="btn btn-small" href="${U.escapeAttr(diagUrl(entry.name, "dump.html"))}" download>Download dump.html</a></p>`
+          ? `<p><a class="btn btn-small" href="${U.escapeAttr(diagUrl(entry.name, "dump.html"))}" download>下载 dump.html</a></p>`
           : ""
         }
                    </div>`
@@ -87,7 +89,7 @@ function diagUrl(name, file) {
 async function clearSession(email) {
   if (!context) return;
   const confirmed = window.confirm(
-    `Clear stored sessions for ${email}?\n\nThis logs the account out immediately \u2014 it will need to sign back in (and re-approve 2FA if used) on its next run.`,
+    `是否清除 ${email} 已保存的会话？\n\n这会立即退出该账号，下次运行时需要重新登录；如果启用了双重验证，还需要再次确认。`,
   );
   if (!confirmed) return;
 
@@ -95,7 +97,7 @@ async function clearSession(email) {
   renderSessions();
   try {
     await context.api.clearSession(email);
-    context.toast(`Sessions cleared for ${email}.`, "success");
+    context.toast(`已清除 ${email} 的会话。`, "success");
     context.invalidate();
     await context.refresh();
   } catch (e) {
@@ -112,7 +114,7 @@ function renderSessions() {
   if (!list) return;
 
   if (!accountsPayload || !sessionsPayload) {
-    list.innerHTML = '<p class="empty-note" style="padding:1.25rem">Loading&hellip;</p>';
+    list.innerHTML = '<p class="empty-note" style="padding:1.25rem">正在加载&hellip;</p>';
     return;
   }
 
@@ -121,7 +123,7 @@ function renderSessions() {
   );
   if (!accounts.length) {
     list.innerHTML =
-      '<p class="empty-note" style="padding:1.25rem">No configured accounts found.</p>';
+      '<p class="empty-note" style="padding:1.25rem">未找到已配置的账号。</p>';
     return;
   }
 
@@ -143,15 +145,15 @@ function renderSessions() {
         null,
       );
       const meta = hasSessions
-        ? `${sessions.map((s) => U.escapeHtml(s.platform)).join(" \u00b7 ")} \u00b7 updated ${U.escapeHtml(U.fmtRelative(latest))}`
-        : "No stored sessions";
+        ? `${sessions.map((s) => U.escapeHtml(SESSION_PLATFORM_LABEL[s.platform] || s.platform)).join(" \u00b7 ")} \u00b7 ${U.escapeHtml(U.fmtRelative(latest))}更新`
+        : "没有已保存的会话";
 
       const isClearing = clearing.has(a.email);
       const disabled = !hasSessions || running || isClearing;
       const title = running
-        ? "The bot must be idle to clear a session"
+        ? "机器人空闲时才能清除会话"
         : !hasSessions
-          ? "Nothing stored for this account yet"
+          ? "此账号尚未保存会话"
           : "";
 
       return `<div class="session-card">
@@ -161,7 +163,7 @@ function renderSessions() {
                 </div>
                 <button type="button" class="btn btn-danger btn-small" data-clear-session="${U.escapeAttr(a.email)}"
                     ${disabled ? "disabled" : ""} ${title ? `title="${U.escapeAttr(title)}"` : ""}>
-                    ${isClearing ? "Clearing\u2026" : "Clear sessions"}
+                    ${isClearing ? "正在清除…" : "清除会话"}
                 </button>
             </div>`;
     })
@@ -176,7 +178,7 @@ function renderSessions() {
 
 export default {
   id: "diagnostics",
-  label: "Diagnostics",
+  label: "诊断",
   interval: 30000,
 
   mount(root, ctx) {
@@ -185,27 +187,26 @@ export default {
     root.innerHTML = `
             <section class="panel" aria-labelledby="sessions-heading">
                 <div class="panel-head">
-                    <h2 id="sessions-heading">Session management</h2>
-                    <span class="panel-sub">Clearing sessions can fix most common login issues</span>
+                    <h2 id="sessions-heading">会话管理</h2>
+                    <span class="panel-sub">清除会话可以解决多数常见登录问题</span>
                 </div>
                 <p class="notice notice--warn">
-                    Clearing a session logs that account out immediately. It will need to sign in again
-                    &mdash; and re-approve 2FA if used &mdash; on its next run. Only clear a session if you're
-                    actually seeing login problems for that account.
+                    清除会话会立即退出该账号，下次运行时需要重新登录；如果启用了双重验证，还需要再次确认。
+                    请仅在该账号出现登录问题时清除会话。
                 </p>
                 <div class="session-card-list" id="sessionCardList">
-                    <p class="empty-note" style="padding:1.25rem">Loading&hellip;</p>
+                    <p class="empty-note" style="padding:1.25rem">正在加载&hellip;</p>
                 </div>
             </section>
 
             <section class="panel" aria-labelledby="diag-heading">
                 <div class="panel-head">
-                    <h2 id="diag-heading">Error captures</h2>
+                    <h2 id="diag-heading">错误记录</h2>
                     <span class="panel-sub" id="diagMeta"></span>
-                    <button type="button" id="diagRefresh" class="btn btn-small">Refresh</button>
+                    <button type="button" id="diagRefresh" class="btn btn-small">刷新</button>
                 </div>
                 <ul class="diag-list" id="diagList">
-                    <li class="empty-note">Loading&hellip;</li>
+                    <li class="empty-note">正在加载&hellip;</li>
                 </ul>
             </section>`;
 

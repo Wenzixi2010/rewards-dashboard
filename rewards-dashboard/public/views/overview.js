@@ -63,7 +63,7 @@ function activeSchedule(status) {
     };
   }
   return {
-    description: local?.description || remote?.description || "Not scheduled",
+    description: local?.description || remote?.description || "未设置定时任务",
     enabled: false,
     timezone: status?.timezone || "UTC",
   };
@@ -92,7 +92,7 @@ function pendingDelayLabel(pendingDelay) {
   const who = pendingDelay.nextEmail
     ? ` (${pendingDelay.nextEmail.split("@")[0]})`
     : "";
-  return `next account in ~${remaining}s${who}`;
+  return `约 ${remaining} 秒后运行下一个账号${who}`;
 }
 
 function controlState() {
@@ -110,7 +110,7 @@ async function runAccount(account) {
   try {
     await context.api.control("start", { accountIndex: account.index });
     context.toast(
-      `Started ACCOUNT_${account.index} only (${account.email}).`,
+      `已单独启动 ACCOUNT_${account.index}（${account.email}）。`,
       "success",
     );
     context.invalidate();
@@ -141,22 +141,22 @@ function renderStats(root, status) {
   const sched = activeSchedule(status);
 
   U.$("#statGrid", root).innerHTML = [
-    statCard("statAccounts", U.fmtNumber(accounts.length), "profiles", "Accounts tracked"),
-    statCard("statCombined", U.fmtNumber(combined), "points", "Combined balance"),
-    statCard("statLastGained", lastRun ? U.fmtSigned(lastRun.totalGained) : "\u2013", "points", "Points earned last run"),
+    statCard("statAccounts", U.fmtNumber(accounts.length), "个账号", "已跟踪账号"),
+    statCard("statCombined", U.fmtNumber(combined), "积分", "积分总余额"),
+    statCard("statLastGained", lastRun ? U.fmtSigned(lastRun.totalGained) : "\u2013", "积分", "上次运行获得积分"),
     statCard(
       "statLastRun",
-      anyRunning ? "Running now" : lastRun ? U.fmtRelative(lastRun.endTs || lastRun.startTs) : "\u2013",
-      anyRunning ? "" : "timestamp",
-      "Last run",
+      anyRunning ? "正在运行" : lastRun ? U.fmtRelative(lastRun.endTs || lastRun.startTs) : "\u2013",
+      anyRunning ? "" : "时间",
+      "最近运行",
       anyRunning ? "stat-icon-running" : "stat-icon-check",
       anyRunning ? "\u25CF" : "\u2713",
     ),
     statCard(
       "statErrors",
       U.fmtNumber(errorCount),
-      "errors",
-      "Accounts in error",
+      "个账号",
+      "异常账号",
       errorCount > 0 ? "stat-icon-alert icon-alert-active" : "stat-icon-check",
       errorCount > 0 ? "!" : "\u2713",
     ),
@@ -164,7 +164,7 @@ function renderStats(root, status) {
       "statSchedule",
       U.escapeHtml(sched.description || "\u2013"),
       sched.timezone || "UTC",
-      sched.both ? "Schedule (2 active)" : "Schedule",
+      sched.both ? "定时任务（2 项已启用）" : "定时任务",
       sched.both ? "stat-icon-alert icon-alert-active" : sched.enabled ? "stat-icon-check" : "stat-icon-idle",
       sched.both ? "!" : sched.enabled ? "\u2713" : "\u2013",
     ),
@@ -180,11 +180,11 @@ function renderAccountRows(root) {
   const errEl = U.$("#ovwAccountsError", root);
   if (errEl) {
     errEl.hidden = !accountsPayload?.apiError;
-    if (accountsPayload?.apiError) errEl.textContent = accountsPayload.apiError;
+    if (accountsPayload?.apiError) errEl.textContent = U.displayMessage(accountsPayload.apiError);
   }
 
   if (!accounts.length) {
-    container.innerHTML = '<p class="empty-note" style="padding:1.25rem">No accounts configured or observed yet.</p>';
+    container.innerHTML = '<p class="empty-note" style="padding:1.25rem">尚未配置或发现任何账号。</p>';
     return;
   }
 
@@ -223,7 +223,7 @@ function renderAccountRows(root) {
         Boolean(context?.status?.botRunning),
       );
       const days = daysByKey[a.key] || null;
-      let barCell = '<p class="empty-note" style="font-size:0.78rem;margin:0">No history yet</p>';
+      let barCell = '<p class="empty-note" style="font-size:0.78rem;margin:0">暂无历史记录</p>';
       
       if (days) {
         // Toggle view logic
@@ -251,10 +251,10 @@ function renderAccountRows(root) {
 
       const todayText =
         todayGained != null
-          ? `+${todayGained.toLocaleString()}\u202fpts today`
+          ? `+${U.fmtNumber(todayGained)} 积分（今天）`
           : displayStatus === "running"
-            ? "Running\u2026"
-            : "No run today";
+            ? "运行中\u2026"
+            : "今天尚未运行";
 
       const accountHistory = histories[a.key] || [];
       let gainHtml = "";
@@ -266,18 +266,19 @@ function renderAccountRows(root) {
         const other = trueGain - selfReported;
         const gainText =
           other !== 0
-            ? `${U.fmtSigned(selfReported)}${other >= 0 ? "+" : "-"}${Math.abs(other).toLocaleString()} pts`
-            : `${U.fmtSigned(trueGain)} pts`;
-        gainHtml = ` \u00b7 <span class="gain-val" title="Change in points since last check-in from all sources">${gainText}</span>`;
+            ? `${U.fmtSigned(selfReported)}${other >= 0 ? "+" : "-"}${U.fmtNumber(Math.abs(other))} 积分`
+            : `${U.fmtSigned(trueGain)} 积分`;
+        gainHtml = ` \u00b7 <span class="gain-val" title="自上次记录以来的积分变化（包含所有来源）">${gainText}</span>`;
       }
 
       const dur = a.lastDurationSec != null ? U.fmtDuration(a.lastDurationSec) : null;
+      const lastError = U.displayMessage(a.lastError);
 
       const sub =
         displayStatus === "running"
-          ? `<span class="hero-sub-running">Running\u2026 ${U.escapeHtml(U.fmtRelativeDetailed(a.lastStartAt))}</span>`
-          : `Last Run: ${U.escapeHtml(U.fmtRelative(a.lastEndAt || a.lastStartAt))}${
-              dur ? ` \u00b7 <span title="Last run duration">⏱ ${U.escapeHtml(dur)}</span>` : ""
+          ? `<span class="hero-sub-running">运行中\u2026 ${U.escapeHtml(U.fmtRelativeDetailed(a.lastStartAt))}</span>`
+          : `最近运行：${U.escapeHtml(U.fmtRelative(a.lastEndAt || a.lastStartAt))}${
+              dur ? ` \u00b7 <span title="上次运行耗时">⏱ ${U.escapeHtml(dur)}</span>` : ""
             }${gainHtml}`;
 
       return `<div class="hero-row">
@@ -285,12 +286,12 @@ function renderAccountRows(root) {
             <div class="hero-acc-card">
                 <div class="hero-acc-pts">
                     <span class="hero-pts-num">${a.lastPoints != null ? U.fmtNumber(a.lastPoints) : "\u2013"}</span>
-                    <span class="hero-pts-unit">Points</span>
+                    <span class="hero-pts-unit">积分</span>
                 </div>
                 <div class="hero-acc-info">
                     <div class="hero-acc-name">
                         ${MASK_EMAILS ? `ACCOUNT_${a.index}` : U.escapeHtml(a.email)}
-                        ${a.configured ? "" : ' <span class="tag-mini">unconfigured</span>'}
+                        ${a.configured ? "" : ' <span class="tag-mini">未配置</span>'}
                     </div>
                     <div class="hero-acc-meta">
                         <span class="hero-acc-today">
@@ -302,18 +303,18 @@ function renderAccountRows(root) {
                     <div class="hero-acc-sub">${sub}</div>
                     ${displayStatus === "error" && a.lastError
                       ? `<div class="hero-acc-error">${U.escapeHtml(
-                          a.lastError.length > 120
-                            ? `${a.lastError.slice(0, 119)}…`
-                            : a.lastError
+                          lastError.length > 120
+                            ? `${lastError.slice(0, 119)}…`
+                            : lastError
                         )}</div>`
                       : ""}
                 </div>
                 <div class="hero-acc-actions">
                     ${a.configured && Number.isInteger(a.index)
-                      ? `<button type="button" class="link-btn" data-run-account="${a.index}" ${!usable || running || launching.has(a.index) ? "disabled" : ""} title="Run only ACCOUNT_${a.index}">${launching.has(a.index) ? "Starting…" : "Run only"}</button>`
+                      ? `<button type="button" class="link-btn" data-run-account="${a.index}" ${!usable || running || launching.has(a.index) ? "disabled" : ""} title="仅运行 ACCOUNT_${a.index}">${launching.has(a.index) ? "启动中…" : "单独运行"}</button>`
                       : ""
                     }
-                    <button type="button" class="link-btn" data-trend="${U.escapeAttr(a.key)}" aria-pressed="${selected === a.key}">Trend</button>
+                    <button type="button" class="link-btn" data-trend="${U.escapeAttr(a.key)}" aria-pressed="${selected === a.key}">趋势</button>
                 </div>
             </div>
         </div>`;
@@ -369,7 +370,7 @@ function renderTrend() {
       value: h.points,
       label: U.fmtDateTime(h.ts),
     })),
-    { emptyMessage: "No point history recorded for this account yet." },
+    { emptyMessage: "此账号尚无积分历史记录。" },
   );
 }
 
@@ -396,10 +397,10 @@ function renderRunHeader(root, status) {
       100,
       Math.max(0, Math.round(((sleep.seconds - sleepSec) / sleep.seconds) * 100)),
     );
-    titleEl.textContent = "Run sleeping";
+    titleEl.textContent = "等待运行";
     U.renderTicker(
       metaEl,
-      `starts in ${U.fmtDuration(sleepSec)} \u00b7 ${U.fmtDuration(sleep.seconds)} delay`,
+      `${U.fmtDuration(sleepSec)} 后开始 \u00b7 启动延迟 ${U.fmtDuration(sleep.seconds)}`,
     );
     bar.style.width = `${pct}%`;
     bar.parentElement.setAttribute("aria-valuenow", String(pct));
@@ -424,18 +425,18 @@ function renderRunHeader(root, status) {
   const done = Math.min(doneCount, total);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  titleEl.textContent = active ? "Run in progress" : "Last run";
+  titleEl.textContent = active ? "正在运行" : "最近运行";
 
   U.renderTicker(
     metaEl,
     [
       run?.version ? `v${run.version}` : null,
-      total ? `${done}/${total} done` : `${seenCount} accounts seen`,
-      total && runningCount ? `${runningCount} running` : null,
-      total && pendingCount ? `${pendingCount} pending` : null,
+      total ? `${done}/${total} 已完成` : `已发现 ${seenCount} 个账号`,
+      total && runningCount ? `${runningCount} 个运行中` : null,
+      total && pendingCount ? `${pendingCount} 个等待中` : null,
       outcome ? U.pillParts(outcome).label : null,
-      run?.clusters != null ? `${run.clusters} cluster${run.clusters === 1 ? "" : "s"}` : null,
-      run?.collected != null ? `${U.fmtSigned(run.collected)} points` : null,
+      run?.clusters != null ? `${run.clusters} 个集群` : null,
+      run?.collected != null ? `${U.fmtSigned(run.collected)} 积分` : null,
       pendingDelayLabel(status?.pendingDelay),
     ]
       .filter(Boolean)
@@ -454,7 +455,7 @@ function renderRunHeader(root, status) {
 
 export default {
   id: "overview",
-  label: "Overview",
+  label: "概览",
   interval: 10000,
 
   mount(root, ctx) {
@@ -464,13 +465,13 @@ export default {
             <p class="notice notice--warn" id="ovwAccountsError" hidden></p>
 
             <section aria-labelledby="stats-heading" class="stats">
-                <h2 id="stats-heading" class="visually-hidden">Summary</h2>
+                <h2 id="stats-heading" class="visually-hidden">统计摘要</h2>
                 <div class="stat-grid" id="statGrid"></div>
             </section>
 
             <section class="panel run-progress-box" id="runProgressBox" aria-labelledby="run-progress-heading">
                 <div class="run-progress-header">
-                    <h2 class="run-progress-title" id="run-progress-heading">Run in progress</h2>
+                    <h2 class="run-progress-title" id="run-progress-heading">正在运行</h2>
                     <span id="currentRunMeta" class="run-progress-meta"></span>
                 </div>
                 <div class="progress" id="currentRunProgressWrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -481,22 +482,22 @@ export default {
             <section class="panel hero-panel" id="currentRun" aria-labelledby="current-run-heading">
                 <div class="hero-panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
                     <div>
-                        <h2 id="current-run-heading" style="margin:0;">Accounts Overview</h2>
+                        <h2 id="current-run-heading" style="margin:0;">账号概览</h2>
                     </div>
                     <div class="seg" id="ovwViewToggle">
-                        <button type="button" class="seg-btn ${viewMode === 'accum' ? 'seg-btn--active' : ''}" data-view="accum">Timeline</button>
-                        <button type="button" class="seg-btn ${viewMode === 'heatmap' ? 'seg-btn--active' : ''}" data-view="heatmap">Heatmap</button>
+                        <button type="button" class="seg-btn ${viewMode === 'accum' ? 'seg-btn--active' : ''}" data-view="accum">时间线</button>
+                        <button type="button" class="seg-btn ${viewMode === 'heatmap' ? 'seg-btn--active' : ''}" data-view="heatmap">热力图</button>
                     </div>
                 </div>
                 <div class="hero-layout" id="overviewHeroRows">
-                    <p class="empty-note" style="padding:1.25rem">Loading&hellip;</p>
+                    <p class="empty-note" style="padding:1.25rem">加载中&hellip;</p>
                 </div>
             </section>
 
             <section class="panel" id="ovwTrendSection" hidden aria-labelledby="ovw-trend-heading">
                 <div class="panel-head">
-                    <h2 id="ovw-trend-heading">Point total &mdash; <span id="ovwTrendName"></span></h2>
-                    <span class="panel-sub">Every recorded balance, oldest to newest</span>
+                    <h2 id="ovw-trend-heading">积分余额 &mdash; <span id="ovwTrendName"></span></h2>
+                    <span class="panel-sub">按时间从早到晚显示每次记录的积分余额</span>
                 </div>
                 <div id="ovwTrendChart" class="chart-wrap"></div>
             </section>`;

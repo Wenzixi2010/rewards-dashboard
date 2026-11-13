@@ -19,23 +19,23 @@
 // disappear from the table.
 // ---------------------------------------------------------------------------
 const GROUPS = {
-  search: { label: "Searches", order: 10 },
-  "mobile-search": { label: "Mobile search quota", order: 11 },
-  "account-run": { label: "Account run", order: 1 },
-  "daily-set": { label: "Daily Set", order: 20 },
-  promotions: { label: "Promotions", order: 25 }, // v4: Daily Set + More Promos are not separable
-  "more-promotions": { label: "More Promos", order: 30 },
-  punchcards: { label: "Punch Cards", order: 40 },
-  "read-to-earn": { label: "Read to Earn", order: 50 },
-  "earn-page": { label: "Earn Page", order: 55 },
-  "daily-check-in": { label: "Daily Check-in", order: 60 },
-  "bonus-claim": { label: "Bonus Claim", order: 70 },
-  "visual-search": { label: "Visual Search", order: 80 },
-  "streak-protection": { label: "Streak Protection", order: 90 },
-  "edge-browsing": { label: "Edge Browsing", order: 100 },
-  "app-rewards": { label: "App Rewards", order: 85 },
-  "search-perk": { label: "Search Perk", order: 110 },
-  other: { label: "Other", order: 900 },
+  search: { label: "搜索", order: 10 },
+  "mobile-search": { label: "移动端搜索额度", order: 11 },
+  "account-run": { label: "账号运行", order: 1 },
+  "daily-set": { label: "每日任务", order: 20 },
+  promotions: { label: "奖励活动", order: 25 }, // v4: Daily Set + More Promos are not separable
+  "more-promotions": { label: "更多活动", order: 30 },
+  punchcards: { label: "打卡任务", order: 40 },
+  "read-to-earn": { label: "阅读赚积分", order: 50 },
+  "earn-page": { label: "赚取积分页面", order: 55 },
+  "daily-check-in": { label: "每日签到", order: 60 },
+  "bonus-claim": { label: "领取额外积分", order: 70 },
+  "visual-search": { label: "视觉搜索", order: 80 },
+  "streak-protection": { label: "连续签到保护", order: 90 },
+  "edge-browsing": { label: "Edge 浏览", order: 100 },
+  "app-rewards": { label: "应用奖励", order: 85 },
+  "search-perk": { label: "搜索福利", order: 110 },
+  other: { label: "其他", order: 900 },
 };
 
 const ACTIVITY_GROUP = {
@@ -60,6 +60,66 @@ const ACTIVITY_GROUP = {
   doEnsureStreakProtection: "streak-protection",
   "edge-browsing": "edge-browsing",
   doActivateSearchPerk: "search-perk",
+};
+
+// Display labels only; activity ids and stored script snapshots stay unchanged.
+const ACTIVITY_LABELS = {
+  search: "搜索",
+  "browser-search-api-report": "浏览器搜索 API 上报",
+  "mobile-search-quota": "移动端搜索额度",
+  "daily-set": "每日任务",
+  "more-promotions": "更多活动",
+  "punchcard-child": "打卡任务步骤",
+  punchcard: "打卡任务",
+  "v4-account": "账号运行",
+  "v4-bonus-search": "额外搜索",
+  "v4-search-on-bing": "在 Bing 上搜索",
+  "v4-url-reward": "奖励活动",
+  "v4-claim-reward": "领取奖励",
+  "v4-app-reward": "应用奖励",
+  "browser-earn": "赚取积分页面",
+  "read-to-earn": "阅读赚积分",
+  "daily-check-in": "每日签到",
+  doClaimBonusPoints: "领取额外积分",
+  "visual-search": "视觉搜索",
+  doEnsureStreakProtection: "连续签到保护",
+  "edge-browsing": "Edge 浏览",
+  doActivateSearchPerk: "激活搜索福利",
+  Search: "搜索",
+  Searches: "搜索",
+  "Mobile search quota": "移动端搜索额度",
+  "Account run": "账号运行",
+  "Daily Set": "每日任务",
+  "Daily set": "每日任务",
+  Promotions: "奖励活动",
+  "More Promos": "更多活动",
+  "More promotions": "更多活动",
+  "Punch Cards": "打卡任务",
+  "Punch cards": "打卡任务",
+  "Punch card": "打卡任务",
+  "Read to Earn": "阅读赚积分",
+  "Read to earn": "阅读赚积分",
+  "Earn Page": "赚取积分页面",
+  "Earn page": "赚取积分页面",
+  "Daily Check-in": "每日签到",
+  "Daily check-in": "每日签到",
+  "Bonus Claim": "领取额外积分",
+  "Bonus claim": "领取额外积分",
+  "Visual Search": "视觉搜索",
+  "Visual search": "视觉搜索",
+  "Streak Protection": "连续签到保护",
+  "Streak protection": "连续签到保护",
+  "Edge Browsing": "Edge 浏览",
+  "Edge browsing": "Edge 浏览",
+  "App Rewards": "应用奖励",
+  "App rewards": "应用奖励",
+  "App reward": "应用奖励",
+  "Search Perk": "搜索福利",
+  "Search perk": "搜索福利",
+  "Bonus search": "额外搜索",
+  "Search on Bing": "在 Bing 上搜索",
+  "Reward claim": "领取奖励",
+  Other: "其他",
 };
 
 // Activities that carry no user-visible outcome of their own.
@@ -96,9 +156,9 @@ const INFORMATIONAL_PENDING = new Set(["step-incomplete"]);
 // `error`. The reasons below are the ones the script produces.
 // ---------------------------------------------------------------------------
 const DEFERRALS = [
-  { kind: "bot-score", re: /bot-score warning/i, label: "high bot score" },
-  { kind: "rate-limit", re: /service rate limit/i, label: "service rate limit" },
-  { kind: "access-rejected", re: /service rejected account access/i, label: "access rejected" },
+  { kind: "bot-score", re: /bot-score warning/i, label: "自动化风险评分过高" },
+  { kind: "rate-limit", re: /service rate limit/i, label: "服务请求限流" },
+  { kind: "access-rejected", re: /service rejected account access/i, label: "访问被拒绝" },
 ];
 
 /** @returns {{kind:string,label:string,reason:string,cutShort:boolean}|null} */
@@ -109,7 +169,7 @@ function classifyDeferral(account) {
   if (hit) return { kind: hit.kind, label: hit.label, reason: String(error), cutShort: status === "partial" };
   // "skipped" only ever comes from a deferral, even one this list doesn't know.
   return status === "skipped"
-    ? { kind: "skipped", label: "skipped", reason: String(error), cutShort: false }
+    ? { kind: "skipped", label: "已跳过", reason: String(error), cutShort: false }
     : null;
 }
 
@@ -344,7 +404,9 @@ function mergeItems(entries) {
         items.set(itemKey(d), {
           key: itemKey(d),
           activity: d.activity,
-          label: d.label || d.activity,
+          label: Object.hasOwn(ACTIVITY_LABELS, d.label)
+            ? ACTIVITY_LABELS[d.label]
+            : d.label || (Object.hasOwn(ACTIVITY_LABELS, d.activity) ? ACTIVITY_LABELS[d.activity] : d.activity),
           title: d.title || null,
           offerId: d.offerId || null,
           platform: d.platform || null,
@@ -572,17 +634,17 @@ function compactDay(day) {
 // pipeline (grouping, reconciliation, UI) is shared.
 // ---------------------------------------------------------------------------
 const V4_SOURCES = {
-  search: { activity: "search", label: "Search" },
-  bonus: { activity: "v4-bonus-search", label: "Bonus search" },
-  searchOnBing: { activity: "v4-search-on-bing", label: "Search on Bing" },
-  urlReward: { activity: "v4-url-reward", label: "Promotions" },
-  read: { activity: "read-to-earn", label: "Read to Earn" },
-  checkIn: { activity: "daily-check-in", label: "Daily check-in" },
-  claimBonus: { activity: "doClaimBonusPoints", label: "Bonus claim" },
-  claimReward: { activity: "v4-claim-reward", label: "Reward claim" },
-  visualSearch: { activity: "visual-search", label: "Visual search" },
-  appReward: { activity: "v4-app-reward", label: "App reward" },
-  punchcard: { activity: "punchcard-child", label: "Punch card" },
+  search: { activity: "search", label: "搜索" },
+  bonus: { activity: "v4-bonus-search", label: "额外搜索" },
+  searchOnBing: { activity: "v4-search-on-bing", label: "在 Bing 上搜索" },
+  urlReward: { activity: "v4-url-reward", label: "奖励活动" },
+  read: { activity: "read-to-earn", label: "阅读赚积分" },
+  checkIn: { activity: "daily-check-in", label: "每日签到" },
+  claimBonus: { activity: "doClaimBonusPoints", label: "领取额外积分" },
+  claimReward: { activity: "v4-claim-reward", label: "领取奖励" },
+  visualSearch: { activity: "visual-search", label: "视觉搜索" },
+  appReward: { activity: "v4-app-reward", label: "应用奖励" },
+  punchcard: { activity: "punchcard-child", label: "打卡任务" },
 };
 
 const V4_SKIP_REASONS = { Fraud_UserWarning_BotScore_UX: "Microsoft bot-score warning detected" };
@@ -590,8 +652,8 @@ const v4SkipError = (reason) => V4_SKIP_REASONS[reason] || `Skipped: ${reason}`;
 
 /** v4's Edge browsing progress, expressed as one completion item. */
 function v4EdgeItem(edge) {
-  const progress = edge.reportsTotal != null ? `${edge.reportsCompleted ?? 0}/${edge.reportsTotal} reports` : "";
-  const base = { activity: "edge-browsing", label: "Edge browsing", pointsGained: 0, pointsKnown: false, message: progress };
+  const progress = edge.reportsTotal != null ? `已上报 ${edge.reportsCompleted ?? 0}/${edge.reportsTotal} 次` : "";
+  const base = { activity: "edge-browsing", label: "Edge 浏览", pointsGained: 0, pointsKnown: false, message: progress };
   switch (edge.status) {
     case "complete": return { ...base, category: "completed", status: "confirmed", reason: "offer-complete" };
     case "skipped": return { ...base, category: "unavailable", status: "skipped", reason: "offer-unavailable" };
@@ -631,7 +693,7 @@ function v4RunToEntries({ run, endedAt, runId, skips }) {
         status = "skipped";
         error = v4SkipError(skip.reason);
       } else if (status === "failed" && error) {
-        incomplete.push({ activity: "v4-account", label: "Account run", category: "incomplete", status: "failed", reason: "activity-error", message: error, pointsGained: 0, pointsKnown: false });
+        incomplete.push({ activity: "v4-account", label: "账号运行", category: "incomplete", status: "failed", reason: "activity-error", message: error, pointsGained: 0, pointsKnown: false });
       }
       if (a.edgeBrowsing) {
         const item = v4EdgeItem(a.edgeBrowsing);

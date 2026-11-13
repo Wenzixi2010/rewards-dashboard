@@ -769,7 +769,7 @@ class Store {
           outcome === "completed"
             ? null
             : event.error ||
-              (known ? null : `Account finished with unrecognised status=${outcome}`);
+              (known ? null : `账号运行结束，但返回了无法识别的状态：${outcome}`);
         // A failed account can report placeholder numbers (a dead cluster
         // worker logs balance 0 and duration 0). Treat those as unknown
         // rather than as real values.
@@ -984,7 +984,7 @@ class Store {
         this._wrapperSkipped = false;
         this._pushActivity({
           ...event,
-          message: `Cron run starting (lock acquired, PID ${event.pid})`,
+          message: `定时运行即将开始（已获取锁，PID ${event.pid}）`,
         });
         break;
       }
@@ -998,7 +998,7 @@ class Store {
         this._pendingSleep = { seconds: event.seconds, sinceTs: event.ts };
         this._pushActivity({
           ...event,
-          message: `Run delayed: sleeping ${event.seconds}s before starting`,
+          message: `运行已延迟：等待 ${event.seconds} 秒后开始`,
         });
         break;
       }
@@ -1034,8 +1034,8 @@ class Store {
           this._pushActivity({
             ...event,
             message: closedSuccessfully
-              ? `Cron run finished successfully (lock released, PID ${event.pid})`
-              : `Cron run finished (lock released, PID ${event.pid})`,
+              ? `定时运行已成功完成（已释放锁，PID ${event.pid}）`
+              : `定时运行已结束（已释放锁，PID ${event.pid}）`,
           });
         }
         break;
@@ -1128,7 +1128,7 @@ class Store {
         this._pushActivity({
           ...event,
           level: "warn",
-          message: `Login approval needed for ${event.userName}: select number ${event.number}`,
+          message: `${event.userName} 需要登录确认：请选择数字 ${event.number}`,
         });
         break;
       }

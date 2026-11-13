@@ -2,6 +2,7 @@ import * as U from "../util.js";
 
 const MAX_LINES = 3000;
 const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 };
+const LEVEL_LABEL = { debug: "调试", info: "信息", warn: "警告", error: "错误" };
 let rootEl = null;
 let entries = []; // sorted by id
 let seen = new Set();
@@ -33,7 +34,7 @@ function lineHtml(e) {
     : "";
   return `<div class="log-line log-line--${U.escapeAttr(e.level)}">
         <span class="log-time">${U.escapeHtml(time)}</span>
-        <span class="log-level log-level--${U.escapeAttr(e.level)}">${U.escapeHtml(e.level)}</span>
+        <span class="log-level log-level--${U.escapeAttr(e.level)}">${U.escapeHtml(LEVEL_LABEL[e.level] || e.level)}</span>
         <span class="log-tag">${U.escapeHtml(tag || "")}</span>
         ${account}
         <span class="log-msg">${U.escapeHtml(e.message || e.raw || "")}</span>
@@ -49,20 +50,20 @@ function renderAll() {
   const visible = entries.filter(matches);
   box.innerHTML = visible.length
     ? visible.slice(-MAX_LINES).map(lineHtml).join("")
-    : '<p class="empty-note">No log lines match the current filter.</p>';
+    : '<p class="empty-note">没有符合当前筛选条件的日志。</p>';
   if (autoscroll) box.scrollTop = box.scrollHeight;
   updateMeta();
 }
 
 function updateMeta() {
   U.$("#logCount", rootEl).textContent =
-    `${entries.length.toLocaleString()} line${entries.length === 1 ? "" : "s"} buffered`;
+    `已缓存 ${U.fmtNumber(entries.length)} 行日志`;
   const btn = U.$("#logPause", rootEl);
   btn.textContent = paused
     ? pendingWhilePaused
-      ? `Resume (${pendingWhilePaused} new)`
-      : "Resume"
-    : "Pause";
+      ? `继续（${U.fmtNumber(pendingWhilePaused)} 条新日志）`
+      : "继续"
+    : "暂停";
   btn.classList.toggle("btn-primary", paused);
 }
 
@@ -119,7 +120,7 @@ function download() {
 
 export default {
   id: "logs",
-  label: "Logs",
+  label: "日志",
   interval: 0, // live — nothing to poll
 
   mount(root, ctx) {
@@ -127,36 +128,36 @@ export default {
     root.innerHTML = `
             <section class="panel" aria-labelledby="logs-heading">
                 <div class="panel-head">
-                    <h2 id="logs-heading">Live logs</h2>
-                    <span class="panel-sub" id="logCount">0 lines buffered</span>
+                    <h2 id="logs-heading">实时日志</h2>
+                    <span class="panel-sub" id="logCount">已缓存 0 行日志</span>
                 </div>
 
                 <div class="toolbar">
                     <label class="field field--inline">
-                        <span>Level</span>
+                        <span>级别</span>
                         <select id="logLevel" class="input">
-                            <option value="all">All</option>
-                            <option value="info">Info and up</option>
-                            <option value="warn">Warnings and up</option>
-                            <option value="error">Errors only</option>
+                            <option value="all">全部</option>
+                            <option value="info">信息及以上</option>
+                            <option value="warn">警告及以上</option>
+                            <option value="error">仅错误</option>
                         </select>
                     </label>
                     <label class="field field--grow">
-                        <span class="visually-hidden">Search</span>
-                        <input id="logSearch" class="input" type="search" placeholder="Filter lines\u2026" autocomplete="off">
+                        <span class="visually-hidden">搜索</span>
+                        <input id="logSearch" class="input" type="search" placeholder="筛选日志…" autocomplete="off">
                     </label>
                     <label class="check">
                         <input type="checkbox" id="logAutoscroll" checked>
-                        <span>Autoscroll</span>
+                        <span>自动滚动</span>
                     </label>
-                    <button type="button" id="logPause" class="btn">Pause</button>
-                    <button type="button" id="logMore" class="btn">Load 2000</button>
-                    <button type="button" id="logDownload" class="btn">Download</button>
-                    <button type="button" id="logClear" class="btn">Clear</button>
+                    <button type="button" id="logPause" class="btn">暂停</button>
+                    <button type="button" id="logMore" class="btn">加载 2,000 行</button>
+                    <button type="button" id="logDownload" class="btn">下载</button>
+                    <button type="button" id="logClear" class="btn">清空</button>
                 </div>
 
                 <div class="log-box" id="logBox" tabindex="0" aria-live="off">
-                    <p class="empty-note">Waiting for log lines\u2026</p>
+                    <p class="empty-note">正在等待日志…</p>
                 </div>
             </section>`;
 
@@ -199,7 +200,7 @@ export default {
         for (const e of res.logs || []) addEntry(e, false);
         renderAll();
         U.toast(
-          `Buffer filled to ${entries.length.toLocaleString()} lines.`,
+          `已缓存 ${U.fmtNumber(entries.length)} 行日志。`,
           "success",
         );
       } catch (e) {

@@ -2,7 +2,7 @@ import type { ThemeDefinition } from './types'
 
 export const defaultTheme: ThemeDefinition = {
   id: 'default',
-  name: 'Default',
+  name: '默认',
   palettes: {
     light: {
       canvas:       '#ffffff',

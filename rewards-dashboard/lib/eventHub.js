@@ -41,7 +41,7 @@ class EventHub extends EventEmitter {
       if (Date.now() - this.lastUpstreamData > 45000) {
         this.log(
           "warn",
-          "No data from the Control API event stream for 45s — reconnecting.",
+          "控制 API 事件流已 45 秒没有数据，正在重新连接。",
         );
         this._dropUpstream();
         this._scheduleReconnect();
@@ -81,7 +81,7 @@ class EventHub extends EventEmitter {
       this.connected = true;
       this.retryMs = 1000;
       this.lastUpstreamData = Date.now();
-      this.log("info", "Control API event stream connected.");
+      this.log("info", "控制 API 事件流已连接。");
       this.emit("open");
 
       let buf = "";
@@ -101,7 +101,7 @@ class EventHub extends EventEmitter {
         this.upstream = null;
         this.emit("close");
         if (!this.stopped) {
-          this.log("warn", "Control API event stream closed — reconnecting.");
+          this.log("warn", "控制 API 事件流已断开，正在重新连接。");
           this._scheduleReconnect();
         }
       };

@@ -42,7 +42,7 @@ function emptyState(container, message) {
 export function lineChart(
   container,
   points,
-  { emptyMessage = "No data yet." } = {},
+  { emptyMessage = "暂无数据。" } = {},
 ) {
   if (!points || points.length === 0)
     return emptyState(container, emptyMessage);
@@ -72,7 +72,7 @@ export function lineChart(
   const dots = points
     .map((p, i) => {
       const [x, y] = coords[i];
-      const title = `${p.label || p.key}: ${fmtNumber(p.value)} points`;
+      const title = `${p.label || p.key}：${fmtNumber(p.value)} 积分`;
       return `<circle class="chart-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"><title>${escapeAttr(title)}</title></circle>`;
     })
     .join("");
@@ -92,7 +92,7 @@ export function lineChart(
 
   container.innerHTML = `
         <svg class="chart" viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img"
-             aria-label="Point total over time">
+             aria-label="积分总额变化趋势">
             ${grid}
             <path class="chart-area" d="${area}" />
             <path class="chart-line" d="${line}" />
@@ -108,7 +108,7 @@ export function lineChart(
 export function barChart(
   container,
   bars,
-  { emptyMessage = "No runs recorded yet." } = {},
+  { emptyMessage = "暂无运行记录。" } = {},
 ) {
   if (!bars || bars.length === 0) return emptyState(container, emptyMessage);
 
@@ -127,7 +127,7 @@ export function barChart(
       const cx = PAD.left + slot * i + slot / 2;
       const y = yOf(b.value);
       const h = Math.max(b.value > 0 ? 2 : 0, baseY - y);
-      const title = `${localDateLabel(b.key, { weekday: "short", month: "short", day: "numeric" })}: +${fmtNumber(b.value)} points${b.sub ? ` (${b.sub})` : ""}`;
+      const title = `${localDateLabel(b.key, { weekday: "short", month: "short", day: "numeric" })}：+${fmtNumber(b.value)} 积分${b.sub ? `（${b.sub}）` : ""}`;
       return `<rect class="chart-bar" x="${(cx - barW / 2).toFixed(1)}" y="${(baseY - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2"><title>${escapeAttr(title)}</title></rect>`;
     })
     .join("");
@@ -143,7 +143,7 @@ export function barChart(
 
   container.innerHTML = `
         <svg class="chart" viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img"
-             aria-label="Points collected per day">
+             aria-label="每日获得的积分">
             ${grid}
             <line class="chart-grid chart-baseline" x1="${PAD.left}" y1="${baseY}" x2="${width - PAD.right}" y2="${baseY}" />
             ${rects}
@@ -272,7 +272,7 @@ export function buildHeatmapHtml(days) {
       ].filter(Boolean).join(" ");
 
       const title = entry
-        ? `${localDateLabel(key, { weekday: "long", month: "short", day: "numeric" })}\n+${entry.gained.toLocaleString()} pts\nTotal ${entry.lastTotal.toLocaleString()}`
+        ? `${localDateLabel(key, { weekday: "long", month: "short", day: "numeric" })}\n+${fmtNumber(entry.gained)} 积分\n总额 ${fmtNumber(entry.lastTotal)}`
         : localDateLabel(key, { weekday: "long", month: "short", day: "numeric" });
 
       gridHtml += `<div class="${cls}" title="${escapeAttr(title)}"></div>`;
@@ -320,7 +320,7 @@ export function buildAccumBarHtml(days, globalMaxGained, maxDays = null) {
       month: "short",
       day: "numeric",
     });
-    html += `<div class="accum-week-marker" title="Week of ${escapeAttr(label)}: +${weekGained.toLocaleString()} pts"></div>`;
+    html += `<div class="accum-week-marker" title="${escapeAttr(label)}所在周：+${fmtNumber(weekGained)} 积分"></div>`;
     weekGained = 0;
   };
 
@@ -340,7 +340,7 @@ export function buildAccumBarHtml(days, globalMaxGained, maxDays = null) {
       );
       if (missed >= 1) {
         const gapClass = missed === 1 ? " accum-gap--warn" : " accum-gap--bad";
-        html += `<div class="accum-gap${gapClass}" style="width:${missed * 16}px" title="Gap: ${missed} missed day${missed > 1 ? "s" : ""}"></div>`;
+        html += `<div class="accum-gap${gapClass}" style="width:${missed * 16}px" title="间隔：${missed} 天没有记录"></div>`;
       }
     }
 
@@ -357,7 +357,7 @@ export function buildAccumBarHtml(days, globalMaxGained, maxDays = null) {
     const opacity = (0.35 + 0.65 * (i / (len - 1 || 1))).toFixed(2);
     altToggle = !altToggle;
 
-    html += `<div class="accum-day ${altToggle ? "accum-day--a" : "accum-day--b"}${isToday ? " accum-day--today" : ""}" style="height:${heightPct}%;opacity:${opacity}" title="${escapeAttr(dateLabel)}${isToday ? " (today)" : ""}: +${day.gained.toLocaleString()} pts (total: ${day.lastTotal.toLocaleString()})"></div>`;
+    html += `<div class="accum-day ${altToggle ? "accum-day--a" : "accum-day--b"}${isToday ? " accum-day--today" : ""}" style="height:${heightPct}%;opacity:${opacity}" title="${escapeAttr(dateLabel)}${isToday ? "（今天）" : ""}：+${fmtNumber(day.gained)} 积分（总额：${fmtNumber(day.lastTotal)}）"></div>`;
   }
 
   return html;

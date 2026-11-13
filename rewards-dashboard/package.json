@@ -2,7 +2,7 @@
   "name": "rewards-dashboard",
   "version": "1.0.0",
   "private": true,
-  "description": "Dashboard for script",
+  "description": "Microsoft Rewards 脚本管理面板",
   "main": "server.js",
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",

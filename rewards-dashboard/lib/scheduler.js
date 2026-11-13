@@ -72,8 +72,8 @@ class Scheduler {
     this.log(
       "info",
       this.config.enabled
-        ? `Schedule enabled (${this.config.cron}) — next run ${this.nextRunAt ? this.nextRunAt.toISOString() : "never"}.`
-        : "Schedule disabled.",
+        ? `定时任务已启用（${this.config.cron}），下次运行：${this.nextRunAt ? this.nextRunAt.toISOString() : "无"}。`
+        : "定时任务已停用。",
     );
     return this.get();
   }
@@ -88,7 +88,7 @@ class Scheduler {
       misfireGraceMinutes: this.config.misfireGraceMinutes,
       excludedAccountIndexes: [...this.config.excludedAccountIndexes],
       valid,
-      error: valid ? null : "Invalid cron expression (needs 5 fields).",
+      error: valid ? null : "Cron 表达式无效，需要包含 5 个字段。",
       nextRunAt: this.nextRunAt ? this.nextRunAt.toISOString() : null,
       lastTriggeredAt: this.lastTriggeredAt,
       lastResult: this.lastResult,
@@ -102,7 +102,7 @@ class Scheduler {
     if ("cron" in patch) {
       if (typeof patch.cron !== "string" || !isValidCron(patch.cron)) {
         const err = new Error(
-          'Invalid cron expression (5 fields, e.g. "0 9 * * *").',
+          'Cron 表达式无效，需要包含 5 个字段，例如 "0 9 * * *"。',
         );
         err.code = "BAD_REQUEST";
         throw err;
@@ -114,7 +114,7 @@ class Scheduler {
       next.skipIfRunning = Boolean(patch.skipIfRunning);
     if ("misfirePolicy" in patch) {
       if (!MISFIRE_POLICIES.has(patch.misfirePolicy)) {
-        const err = new Error("Invalid missed-run policy.");
+        const err = new Error("错过运行时的处理策略无效。");
         err.code = "BAD_REQUEST";
         throw err;
       }
@@ -124,7 +124,7 @@ class Scheduler {
       const minutes = Number(patch.misfireGraceMinutes);
       if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
         const err = new Error(
-          "Missed-run grace must be between 1 and 1440 minutes.",
+          "错过运行的补偿期限必须在 1 到 1440 分钟之间。",
         );
         err.code = "BAD_REQUEST";
         throw err;
@@ -142,7 +142,7 @@ class Scheduler {
     this._arm();
     this.log(
       "info",
-      next.enabled ? `Schedule updated: ${next.cron}` : "Schedule disabled.",
+      next.enabled ? `定时任务已更新：${next.cron}` : "定时任务已停用。",
     );
     this.onChange();
     return this.get();
@@ -202,10 +202,10 @@ class Scheduler {
 
     try {
       if (this.config.skipIfRunning && this.isBusy()) {
-        this.lastResult = "skipped (a run was already in progress)";
+        this.lastResult = "已跳过（已有任务正在运行）";
         this.log(
           "warn",
-          "Scheduled run skipped — a run is already in progress.",
+          "已跳过定时运行，已有任务正在运行。",
         );
       } else {
         try {
@@ -214,20 +214,20 @@ class Scheduler {
             : {};
           await this.client.post("/start", body);
           this.lastResult = recovered
-            ? "started after dashboard restart"
-            : "started";
+            ? "已在面板重启后启动"
+            : "已启动";
           this.log(
             "info",
             recovered
-              ? "Missed scheduled run started after dashboard restart."
-              : "Scheduled run started.",
+              ? "已在面板重启后补充启动错过的定时任务。"
+              : "定时任务已启动。",
           );
         } catch (e) {
           this.lastResult =
             e.statusCode === 409
-              ? "skipped (the API already had a run active)"
-              : `failed: ${e.message}`;
-          this.log("warn", `Scheduled run could not start: ${e.message}`);
+              ? "已跳过（控制 API 中已有任务正在运行）"
+              : `启动失败：${e.message}`;
+          this.log("warn", `定时任务无法启动：${e.message}`);
         }
       }
     } finally {
@@ -241,7 +241,7 @@ class Scheduler {
   _normalizeExcluded(value) {
     if (!Array.isArray(value)) {
       const err = new Error(
-        "Excluded accounts must be an array of account indexes.",
+        "排除账号必须以账号序号数组的形式提供。",
       );
       err.code = "BAD_REQUEST";
       throw err;
@@ -249,7 +249,7 @@ class Scheduler {
     const indexes = [...new Set(value.map(Number))];
     if (indexes.some((index) => !Number.isSafeInteger(index) || index < 1)) {
       const err = new Error(
-        "Excluded accounts must contain only positive account indexes.",
+        "排除账号的序号必须为正整数。",
       );
       err.code = "BAD_REQUEST";
       throw err;
@@ -281,11 +281,11 @@ class Scheduler {
     this.lastHandledScheduledAt = scheduledAt;
     this.lastResult =
       this.config.misfirePolicy === "grace-period"
-        ? `missed run skipped (outside ${this.config.misfireGraceMinutes}-minute grace period)`
-        : "missed run skipped after dashboard restart";
+        ? `已跳过错过的运行（已超过 ${this.config.misfireGraceMinutes} 分钟的补偿期限）`
+        : "已在面板重启后跳过错过的运行";
     this.log(
       "warn",
-      `Scheduled run at ${scheduledAt} was missed while the dashboard was offline.`,
+      `面板离线期间错过了 ${scheduledAt} 的定时运行。`,
     );
     this._persist();
     this.onChange();

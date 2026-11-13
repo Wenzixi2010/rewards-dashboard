@@ -36,9 +36,9 @@ function renderChart() {
   const active = bars.filter((b) => b.value > 0).length;
 
   U.$("#runsChartMeta", rootEl).textContent =
-    `${U.fmtSigned(total)} points over ${days} days \u00b7 ${active} day${active === 1 ? "" : "s"} with a run`;
+    `${days} 天累计 ${U.fmtSigned(total)} 积分 \u00b7 ${active} 天有运行记录`;
   barChart(U.$("#runsChart", rootEl), bars, {
-    emptyMessage: "No point history recorded yet.",
+    emptyMessage: "暂无积分历史记录。",
   });
 }
 
@@ -62,7 +62,7 @@ function renderRuns() {
 
   if (!runs.length) {
     body.innerHTML =
-      '<tr><td colspan="7" class="empty-note">No runs recorded yet.</td></tr>';
+      '<tr><td colspan="7" class="empty-note">暂无运行记录。</td></tr>';
     return;
   }
 
@@ -77,7 +77,7 @@ function renderRuns() {
             )
             : "\u2013";
       return `<tr>
-                <td>${U.statusPill(r.status, r.outcome ? `Script reported: ${r.outcome}` : "")}</td>
+                <td>${U.statusPill(r.status, r.outcome ? `脚本报告的结果：${U.pillParts(r.outcome).label}` : "")}</td>
                 <td>${U.escapeHtml(U.fmtDateTime(r.startTs || r.endTs))}</td>
                 <td>${U.escapeHtml(duration)}</td>
                 <td class="num">${r.accountsProcessed != null ? U.fmtNumber(r.accountsProcessed) : "\u2013"}${r.totalAccounts ? ` / ${U.fmtNumber(r.totalAccounts)}` : ""}</td>
@@ -107,11 +107,11 @@ function renderExits() {
 
   U.$("#exitsError", rootEl).hidden = !runsPayload?.apiError;
   if (runsPayload?.apiError)
-    U.$("#exitsError", rootEl).textContent = runsPayload.apiError;
+    U.$("#exitsError", rootEl).textContent = U.displayMessage(runsPayload.apiError);
 
   if (!exits.length) {
     list.innerHTML =
-      '<li class="empty-note">The control API hasn\u2019t recorded any runs yet. Runs it launches itself (manually or on a schedule) show up here.</li>';
+      '<li class="empty-note">控制 API 尚无运行记录。通过控制 API 手动启动或定时启动的运行会显示在这里。</li>';
     return;
   }
 
@@ -135,7 +135,7 @@ function renderExits() {
             (a) => `<li class="runacc">
                             ${U.statusPill(a.success === true ? "success" : /run cancelled|stopped/i.test(a.error || "") ? "stopped" : "error")}
                             <span class="runacc-email">${U.escapeHtml(a.email)}</span>
-                            <span class="runacc-detail">${U.escapeHtml(a.error ? a.error : `${U.fmtSigned(a.collected)} pts`)}</span>
+                            <span class="runacc-detail">${U.escapeHtml(a.error ? U.displayMessage(a.error) : `${U.fmtSigned(a.collected)} 积分`)}</span>
                           </li>`,
           )
           .join("")}</ul>`
@@ -145,7 +145,7 @@ function renderExits() {
                 <button type="button" class="exit-head" data-exit="${i}" aria-expanded="${isOpen}">
                     ${exitPill(run)}
                     <span class="exit-when">${U.escapeHtml(U.fmtDateTime(run.endedAt || run.startedAt))}</span>
-                    <span class="exit-meta">${U.fmtSigned(run.collected || 0)} pts \u00b7 ${ok} ok${stopped ? ` \u00b7 ${stopped} stopped` : ""}${failed ? ` \u00b7 ${failed} failed` : ""}</span>
+                    <span class="exit-meta">${U.fmtSigned(run.collected || 0)} 积分 \u00b7 ${ok} 个成功${stopped ? ` \u00b7 ${stopped} 个已停止` : ""}${failed ? ` \u00b7 ${failed} 个失败` : ""}</span>
                     <span class="exit-chevron" aria-hidden="true">${isOpen ? "\u25BE" : "\u25B8"}</span>
                 </button>
                 ${detail}
@@ -164,7 +164,7 @@ function renderExits() {
 
 export default {
   id: "runs",
-  label: "Runs",
+  label: "运行记录",
   interval: 20000,
 
   mount(root) {
@@ -172,12 +172,12 @@ export default {
     root.innerHTML = `
             <section class="panel" aria-labelledby="runs-chart-heading">
                 <div class="panel-head">
-                    <h2 id="runs-chart-heading">Points per day</h2>
+                    <h2 id="runs-chart-heading">每日积分</h2>
                     <span class="panel-sub" id="runsChartMeta"></span>
-                    <div class="seg" role="group" aria-label="Date range">
-                        <button type="button" class="seg-btn" data-days="14">14d</button>
-                        <button type="button" class="seg-btn seg-btn--active" data-days="30">30d</button>
-                        <button type="button" class="seg-btn" data-days="90">90d</button>
+                    <div class="seg" role="group" aria-label="日期范围">
+                        <button type="button" class="seg-btn" data-days="14">14 天</button>
+                        <button type="button" class="seg-btn seg-btn--active" data-days="30">30 天</button>
+                        <button type="button" class="seg-btn" data-days="90">90 天</button>
                     </div>
                 </div>
                 <div id="runsChart" class="chart-wrap"></div>
@@ -185,15 +185,15 @@ export default {
 
             <section class="panel" aria-labelledby="runs-table-heading">
                 <div class="panel-head">
-                    <h2 id="runs-table-heading">Run history</h2>
-                    <span class="panel-sub">Parsed from the bot&rsquo;s own log output</span>
+                    <h2 id="runs-table-heading">运行历史</h2>
+                    <span class="panel-sub">从脚本输出的日志中解析</span>
                 </div>
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>Status</th><th>Started</th><th>Duration</th>
-                                <th>Accounts</th><th>Gained</th><th>New total</th><th>Version</th>
+                                <th>状态</th><th>开始时间</th><th>耗时</th>
+                                <th>账号数</th><th>获得积分</th><th>最新总积分</th><th>版本</th>
                             </tr>
                         </thead>
                         <tbody id="runsBody"></tbody>
@@ -203,8 +203,8 @@ export default {
 
             <section class="panel" aria-labelledby="exits-heading">
                 <div class="panel-head">
-                    <h2 id="exits-heading">Process exits</h2>
-                    <span class="panel-sub">How each run the control API launched actually ended</span>
+                    <h2 id="exits-heading">进程退出记录</h2>
+                    <span class="panel-sub">控制 API 启动的每次运行的实际结束情况</span>
                 </div>
                 <p class="notice notice--warn" id="exitsError" hidden></p>
                 <ul class="exit-list" id="exitList"></ul>

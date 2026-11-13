@@ -28,26 +28,28 @@ export function el(tag, attrs = {}, html = "") {
 // fomrat
 
 const DASH = "\u2013";
+const LOCALE = "zh-CN";
 
 export function fmtNumber(n) {
   if (n == null || Number.isNaN(n)) return DASH;
-  return Number(n).toLocaleString();
+  return Number(n).toLocaleString(LOCALE);
 }
 
 export function fmtSigned(n) {
   if (n == null || Number.isNaN(n)) return DASH;
-  return (n > 0 ? "+" : "") + Number(n).toLocaleString();
+  return (n > 0 ? "+" : "") + Number(n).toLocaleString(LOCALE);
 }
 
 export function fmtDateTime(iso) {
   if (!iso) return DASH;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return DASH;
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(LOCALE, {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -55,19 +57,19 @@ export function fmtTime(iso) {
   if (!iso) return DASH;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return DASH;
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat(LOCALE, {
     timeZone: timeZone || undefined,
     year: "numeric",
-    month: "short",
+    month: "numeric",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
-    hour12: true,
+    hour12: false,
   }).formatToParts(d);
   const get = (type) => parts.find((part) => part.type === type)?.value || "";
-  const date = `${get("month")} ${get("day")}, ${get("year")}`;
-  const clock = `${get("hour")}:${get("minute")}:${get("second")} ${get("dayPeriod").toLowerCase()}`;
+  const date = `${get("year")}年${get("month")}月${get("day")}日`;
+  const clock = `${get("hour")}:${get("minute")}:${get("second")}`;
   return `${date} ${clock}`;
 }
 
@@ -75,12 +77,14 @@ export function fmtRelative(iso) {
   if (!iso) return DASH;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return DASH;
-  const mins = Math.round((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  const elapsed = Date.now() - d.getTime();
+  const suffix = elapsed < 0 ? "后" : "前";
+  const mins = Math.round(Math.abs(elapsed) / 60000);
+  if (mins < 1) return elapsed < 0 ? "即将" : "刚刚";
+  if (mins < 60) return `${mins} 分钟${suffix}`;
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return `${hours} 小时${suffix}`;
+  return `${Math.round(hours / 24)} 天${suffix}`;
 }
 
 // Like fmtRelative, but keeps the smaller unit so long-running items read
@@ -91,29 +95,29 @@ export function fmtRelativeDetailed(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return DASH;
   const mins = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "刚刚";
+  if (mins < 60) return `${mins} 分钟前`;
   const hours = Math.floor(mins / 60);
   const remMins = mins % 60;
-  if (hours < 24) return remMins ? `${hours}h ${remMins}m ago` : `${hours}h ago`;
+  if (hours < 24) return remMins ? `${hours} 小时 ${remMins} 分钟前` : `${hours} 小时前`;
   const days = Math.floor(hours / 24);
   const remHours = hours % 24;
-  return remHours ? `${days}d ${remHours}h ago` : `${days}d ago`;
+  return remHours ? `${days} 天 ${remHours} 小时前` : `${days} 天前`;
 }
 
 export function fmtDuration(sec) {
   if (sec == null || Number.isNaN(sec)) return DASH;
-  if (sec < 60) return `${Math.round(sec)}s`;
+  if (sec < 60) return `${Math.round(sec)} 秒`;
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
-  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`;
+  if (m < 60) return s ? `${m} 分钟 ${s} 秒` : `${m} 分钟`;
   const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m`;
+  return `${h} 小时 ${m % 60} 分钟`;
 }
 
 export function fmtUptime(sec) {
   if (sec == null) return DASH;
-  if (sec < 60) return `${Math.round(sec)}s`;
+  if (sec < 60) return `${Math.round(sec)} 秒`;
   return fmtDuration(sec);
 }
 
@@ -161,7 +165,7 @@ export function isoWeekStartKey(year, month, day) {
 
 export function localDateLabel(key, options) {
   const [y, m, d] = key.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, options);
+  return new Date(y, m - 1, d).toLocaleDateString(LOCALE, options);
 }
 
 // Buckets history rows by day, using the TRUE point movement detected
@@ -202,6 +206,40 @@ export function bucketByDay(history) {
 
 let toastHost = null;
 
+// Translate known internal messages only when displaying them. Parsers and
+// status checks continue to receive the original log and error strings.
+const DISPLAY_MESSAGES = new Map([
+  ["Run stalled before this account finished", "运行停滞，账号尚未完成"],
+  ["Microsoft bot-score warning detected", "检测到 Microsoft 的自动化行为评分警告"],
+  ["Run completed, but this account's own result was never logged (its worker likely failed silently).", "运行已结束，但未收到此账号的运行结果，处理该账号的进程可能已异常退出。"],
+  ["started", "已启动"],
+  ["started after dashboard restart", "已在面板重启后启动"],
+  ["skipped (a run was already in progress)", "已跳过（已有任务正在运行）"],
+  ["skipped (the API already had a run active)", "已跳过（控制 API 中已有任务正在运行）"],
+  ["missed run skipped after dashboard restart", "已在面板重启后跳过错过的运行"],
+]);
+
+export function displayMessage(message) {
+  if (message == null) return "";
+  const text = String(message);
+  const known = DISPLAY_MESSAGES.get(text);
+  if (known) return known;
+
+  const unfinished = /^Run (stalled|stopped|interrupted|crashed) before this account finished$/.exec(text);
+  if (unfinished) {
+    const states = { stalled: "停滞", stopped: "停止", interrupted: "中断", crashed: "崩溃" };
+    return `运行已${states[unfinished[1]]}，账号尚未完成`;
+  }
+  const skipped = /^Skipped: (.+)$/.exec(text);
+  if (skipped) return `已跳过：${skipped[1]}`;
+  const failed = /^failed: (.+)$/.exec(text);
+  if (failed) return `启动失败：${displayMessage(failed[1])}`;
+  const missed = /^missed run skipped \(outside (\d+)-minute grace period\)$/.exec(text);
+  if (missed) return `已跳过错过的运行（已超过 ${missed[1]} 分钟的补偿期限）`;
+
+  return text;
+}
+
 export function toast(message, kind = "info", ms = 4000) {
   if (!toastHost) {
     toastHost = el("div", {
@@ -214,7 +252,7 @@ export function toast(message, kind = "info", ms = 4000) {
   const node = el(
     "div",
     { class: `toast toast--${kind}` },
-    escapeHtml(message),
+    escapeHtml(displayMessage(message)),
   );
   toastHost.appendChild(node);
   setTimeout(() => {
@@ -326,22 +364,22 @@ export function debounce(fn, ms = 250) {
 }
 
 const PILLS = {
-  full: ["pill-success", "Complete"],
-  success: ["pill-success", "Success"],
-  partial: ["pill-warn", "Partial"],
-  skipped: ["pill-idle", "Skipped"],
-  done: ["pill-success", "Done"],
-  error: ["pill-error", "Error"],
-  crashed: ["pill-error", "Crashed"],
-  interrupted: ["pill-warn", "Interrupted"],
-  stopped: ["pill-warn", "Stopped"],
-  stalled: ["pill-warn", "Stalled"],
-  running: ["pill-running", "Running"],
-  starting: ["pill-running", "Starting"],
-  stopping: ["pill-warn", "Stopping"],
-  pending: ["pill-pending", "Pending"],
-  sleeping: ["pill-pending", "Sleeping"],
-  idle: ["pill-idle", "Idle"],
+  full: ["pill-success", "全部完成"],
+  success: ["pill-success", "成功"],
+  partial: ["pill-warn", "部分完成"],
+  skipped: ["pill-idle", "已跳过"],
+  done: ["pill-success", "已完成"],
+  error: ["pill-error", "错误"],
+  crashed: ["pill-error", "已崩溃"],
+  interrupted: ["pill-warn", "已中断"],
+  stopped: ["pill-warn", "已停止"],
+  stalled: ["pill-warn", "已停滞"],
+  running: ["pill-running", "运行中"],
+  starting: ["pill-running", "启动中"],
+  stopping: ["pill-warn", "停止中"],
+  pending: ["pill-pending", "等待中"],
+  sleeping: ["pill-pending", "延迟启动"],
+  idle: ["pill-idle", "空闲"],
 };
 
 const STATUS_ALIASES = {
@@ -373,12 +411,13 @@ export function accountDisplayStatus(account, runAccount, runActive = false) {
 
 export function pillParts(status) {
   const normalized = STATUS_ALIASES[status] || status;
-  const [cls, label] = PILLS[normalized] || PILLS.idle;
+  const [cls] = PILLS[normalized] || PILLS.idle;
+  const [, label] = PILLS[status] || PILLS[normalized] || PILLS.idle;
   return { cls, label };
 }
 
 export function statusPill(status, title = "") {
   const { cls, label } = pillParts(status);
-  const attr = title ? ` title="${escapeAttr(title)}"` : "";
+  const attr = title ? ` title="${escapeAttr(displayMessage(title))}"` : "";
   return `<span class="pill ${cls}"${attr}>${label}</span>`;
 }

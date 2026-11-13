@@ -1,7 +1,8 @@
 {
-  "name": "Microsoft Rewards Dashboard",
-  "short_name": "Rewards Dashboard",
-  "description": "Companion dashboard for Microsoft Rewards Script logs and progress tracking.",
+  "name": "Microsoft Rewards 管理面板",
+  "short_name": "Rewards 面板",
+  "description": "查看 Microsoft Rewards 脚本的账号、积分、日志和运行进度。",
+  "lang": "zh-CN",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",

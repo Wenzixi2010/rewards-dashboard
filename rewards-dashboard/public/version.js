@@ -1,1 +1,1 @@
-window.APP_VERSION = "Development";
+window.APP_VERSION = "开发版";

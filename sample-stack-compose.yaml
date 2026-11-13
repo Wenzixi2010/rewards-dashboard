@@ -1,5 +1,5 @@
-# An example compose stack with both the script and the dashboard together.
-# References v4.0.3 of the microsoft-rewards-script's compose. This example may be out of date, always use updated values.
+# 将脚本和面板放在同一个 Compose 项目中的示例。
+# 参考 microsoft-rewards-script v4.0.3 的 Compose 配置；示例可能已过时，请以最新配置为准。
 
 services:
   microsoft-rewards-script:
@@ -14,7 +14,7 @@ services:
     env_file:
       - path: .env
     environment:
-      # ── Scheduler ──────────────────────────────────────
+      # ── 定时任务 ──────────────────────────────────────
       TZ: 'America/Toronto'
       NODE_ENV: 'production'
       CRON_SCHEDULE: '0 7,19 * * *'
@@ -24,19 +24,19 @@ services:
       #MAX_SLEEP_MINUTES: "50"
       #STUCK_PROCESS_TIMEOUT_HOURS: "8"
 
-      # ── API mode ──────────────────────────────────────
-      # Set API_MODE=true to run the API server for additional control options
+      # ── API 模式 ──────────────────────────────────────
+      # 设置 API_MODE=true 启动 API 服务，以使用更多控制功能
       API_MODE: 'true'
-      API_TOKEN: '${API_TOKEN}'             # required for API mode, see example.env
+      API_TOKEN: '${API_TOKEN}'             # API 模式必填，参见 example.env
       API_ALLOW_SCHEDULE_WRITE: 'true'
       API_ALLOW_ENV_OVERRIDES: 'true'
       API_ALLOW_CONFIG_REVEAL: 'true'
       API_ALLOW_CONFIG_WRITE: 'true'
       
-      #  ── Configuration ──────────────────────────────────────
-      # Uncomment to override defaults, a full list of configuration options are in the README.
+      #  ── 配置 ──────────────────────────────────────
+      # 取消注释以覆盖默认值，完整配置选项见 README。
       #CONFIG_CLUSTERS: '1'
-      #... add additional configuration overrides as needed
+      #... 可按需添加其他配置覆盖项
 
     ports:
       - '3010:3010'
@@ -63,10 +63,10 @@ services:
       CONTROL_API_URL: "http://microsoft-rewards-script:3010"
       CONTROL_API_TOKEN: "${API_TOKEN}"
       TZ: "America/Toronto"
-      # Optional.
+      # 可选配置。
       # DASHBOARD_TITLE: 'Microsoft Rewards'
-      # POLL_MS: '5000'      # status poll; logs are streamed
-      # LOG_REPLAY: '300'    # log lines replayed when the stream connects
+      # POLL_MS: '5000'      # 状态轮询间隔；日志通过流式连接接收
+      # LOG_REPLAY: '300'    # 流式连接建立时回放的日志行数
     volumes:
       - ./data:/data
     security_opt:

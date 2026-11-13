@@ -20,10 +20,10 @@ import configView from "./views/config.js";
 import diagnostics from "./views/diagnostics.js";
 
 function initVersion() {
-  const version = window.APP_VERSION || "Development";
+  const version = window.APP_VERSION || "开发版";
 
   if (els.footerVersion) {
-    els.footerVersion.textContent = `Microsoft Rewards Dashboard:${version}`;
+    els.footerVersion.textContent = `Microsoft Rewards 面板：${version}`;
   }
 }
 
@@ -95,7 +95,7 @@ function setMode(mode, persist) {
   currentMode = mode;
   els.modeIcon.textContent = mode === "dark" ? "\u2600" : "\u263D";
   const label =
-    mode === "dark" ? "Switch to light mode" : "Switch to dark mode";
+    mode === "dark" ? "切换到浅色模式" : "切换到深色模式";
   els.modeToggle.setAttribute("aria-label", label);
   els.modeToggle.title = label;
   if (persist) setStoredMode(mode);
@@ -243,7 +243,7 @@ function connectStream() {
 
   es.addEventListener("reset", () => {
     for (const v of VIEWS) v.onReset?.(ctx);
-    U.toast("Control API restarted — reconnected.", "warn");
+    U.toast("控制 API 已重启，连接已恢复。", "warn");
   });
 
   es.onerror = () => {
@@ -275,21 +275,21 @@ function renderStatusBadge() {
 
   if (!state.streamOpen && !s) {
     badge.classList.add("status-down");
-    els.statusText.textContent = "Dashboard server unreachable";
+    els.statusText.textContent = "无法连接面板服务器";
   } else if (!s) {
     badge.classList.add("status-unknown");
-    els.statusText.textContent = "Connecting\u2026";
+    els.statusText.textContent = "连接中\u2026";
   } else if (!s.reachable) {
     badge.classList.add("status-down");
-    els.statusText.textContent = "Bot backend offline";
+    els.statusText.textContent = "机器人后端离线";
   } else if (s.authOk === false) {
     badge.classList.add("status-warn");
-    els.statusText.textContent = "Control API token rejected";
+    els.statusText.textContent = "控制 API 令牌验证失败";
   } else {
     badge.classList.add("status-live");
-    els.statusText.textContent = "Connected";
+    els.statusText.textContent = "已连接";
   }
-  badge.title = s?.lastError || "";
+  badge.title = U.displayMessage(s?.lastError);
 }
 
 function renderFooter() {
@@ -302,23 +302,23 @@ function renderFooter() {
     const outcome = s?.botOutcome;
 
     footerStatus.textContent = !s
-        ? "Connecting…"
+        ? "连接中…"
         : !s.reachable
-          ? "Disconnected"
+          ? "已断开"
           : outcome === "error"
-            ? "Error"
+            ? "错误"
             : outcome === "interrupted"
-              ? "Interrupted"
+              ? "已中断"
             : outcome === "stopped"
-              ? "Stopped"
+              ? "已停止"
             : outcome === "success"
-              ? "Success"
+              ? "成功"
               : s.botRunning
-                ? "Running"
-                : "Connected";
+                ? "运行中"
+                : "已连接";
 
     footerScriptVersion.textContent =
-        `Microsoft Rewards Script:${s?.version || "\u2013"}`;
+        `Microsoft Rewards 脚本：${s?.version || "\u2013"}`;
 }
 
 function renderControlStrip() {
@@ -344,30 +344,30 @@ function renderControlStrip() {
   const run = bot?.run;
   const bits = [];
   if (sleepSec != null) {
-    bits.push(`run starts in ${U.fmtDuration(sleepSec)}`);
+    bits.push(`${U.fmtDuration(sleepSec)}后开始运行`);
   } else if (running) {
-    if (bot?.pid) bits.push(`pid ${bot.pid}`);
-    if (bot?.startedAt) bits.push(`started ${U.fmtRelativeDetailed(bot.startedAt)}`);
+    if (bot?.pid) bits.push(`进程 ID：${bot.pid}`);
+    if (bot?.startedAt) bits.push(`启动于${U.fmtRelativeDetailed(bot.startedAt)}`);
     if (run?.accountsTotal)
-      bits.push(`${run.accountsSeen || 0}/${run.accountsTotal} accounts`);
-    if (run?.collected != null) bits.push(`${U.fmtSigned(run.collected)} pts`);
+      bits.push(`${run.accountsSeen || 0}/${run.accountsTotal} 个账号`);
+    if (run?.collected != null) bits.push(`${U.fmtSigned(run.collected)} 积分`);
   } else if (outcome) {
     const processed = run?.accountsSeen || run?.totals?.accountsProcessed || run?.accountsTotal;
-    if (processed) bits.push(`${processed} accounts processed`);
+    if (processed) bits.push(`已处理 ${processed} 个账号`);
     if (run?.collected != null && run.collected !== 0)
-      bits.push(`${U.fmtSigned(run.collected)} pts earned`);
+      bits.push(`获得 ${U.fmtSigned(run.collected)} 积分`);
   }
   if (!running && s?.schedule?.enabled && s.schedule.nextRunAt) {
-    bits.push(`next run ${U.fmtDateTime(s.schedule.nextRunAt)}`);
+    bits.push(`下次运行：${U.fmtDateTime(s.schedule.nextRunAt)}`);
   }
   if (!running && !bits.length && bot?.lastExit) {
     bits.push(
-      `last exit: code ${bot.lastExit.code ?? "n/a"}${bot.lastExit.signal ? ` / ${bot.lastExit.signal}` : ""}`,
+      `上次退出：退出码 ${bot.lastExit.code ?? "无"}${bot.lastExit.signal ? ` / ${bot.lastExit.signal}` : ""}`,
     );
   }
   U.renderTicker(
     els.ctlDetail,
-    bits.join(" \u00b7 ") || (usable ? "Ready" : "Control API unavailable"),
+    bits.join(" \u00b7 ") || (usable ? "就绪" : "控制 API 不可用"),
   );
 
   els.btnStart.disabled = !usable || running;
@@ -381,7 +381,7 @@ async function control(action, body, { confirm: confirmMsg, success } = {}) {
   if (confirmMsg && !window.confirm(confirmMsg)) return;
   try {
     await api.control(action, body || {});
-    U.toast(success || `${action} sent.`, "success");
+    U.toast(success || "操作请求已发送。", "success");
   } catch (e) {
     U.toast(e.message, e.status === 409 ? "warn" : "error");
   }
@@ -389,18 +389,18 @@ async function control(action, body, { confirm: confirmMsg, success } = {}) {
 
 function initControls() {
   els.btnStart.addEventListener("click", () =>
-    control("start", {}, { success: "Run started." }),
+    control("start", {}, { success: "运行已启动。" }),
   );
   els.btnStop.addEventListener("click", () =>
-    control("stop", { force: false }, { success: "Stop signal sent." }),
+    control("stop", { force: false }, { success: "停止信号已发送。" }),
   );
   els.btnRestart.addEventListener("click", () =>
     control(
       "restart",
       {},
       {
-        confirm: "Restart the bot? A run in progress will be stopped first.",
-        success: "Restarting\u2026",
+        confirm: "确定重启机器人吗？正在进行的运行会先停止。",
+        success: "正在重启\u2026",
       },
     ),
   );
@@ -410,8 +410,8 @@ function initControls() {
       "stop",
       { force: true },
       {
-        confirm: "Force-kill the run (SIGKILL)? It gets no chance to clean up.",
-        success: "Force stop sent.",
+        confirm: "确定强制终止运行（SIGKILL）吗？进程将立即结束，无法清理临时数据。",
+        success: "强制停止请求已发送。",
       },
     );
   });
@@ -422,8 +422,8 @@ function initControls() {
       {},
       {
         confirm:
-          "Shut the control API down? The dashboard will go offline until you start it again on the bot host.",
-        success: "Shutdown sent.",
+          "确定关闭控制 API 吗？面板将离线，需要在机器人主机上重新启动控制 API 才能恢复连接。",
+        success: "关闭请求已发送。",
       },
     );
   });
@@ -456,7 +456,7 @@ function setCodes(codes) {
     els.loginCodesAnnounce.textContent = fresh
       .map(
         (c) =>
-          `Login approval needed for ${c.userName}: select number ${c.number}. Expires in 60 seconds.`,
+          `${c.userName} 需要确认登录：请选择数字 ${c.number}。验证码将在 60 秒后过期。`,
       )
       .join(" ");
   }
@@ -480,7 +480,7 @@ function renderCodes() {
                     <div class="login-code-number">${U.escapeHtml(c.number)}</div>
                     <div class="login-code-info">
                         <span class="login-code-name">${U.escapeHtml(c.userName)}</span>
-                        <span class="login-code-countdown ${secsLeft <= 15 ? "urgent" : ""}">Expires in ${secsLeft}s</span>
+                        <span class="login-code-countdown ${secsLeft <= 15 ? "urgent" : ""}">${secsLeft} 秒后过期</span>
                     </div>
                 </div>`;
     })

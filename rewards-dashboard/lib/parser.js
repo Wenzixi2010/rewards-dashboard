@@ -471,7 +471,7 @@ function wrapperSkippedEvent(dockerTs, clean) {
     level: "warn",
     platform: "MAIN",
     title: "WRAPPER",
-    message: "Scheduled run skipped: a run was already in progress",
+    message: "已跳过定时运行：已有运行正在进行",
     raw: clean,
     kind: "wrapper-run-skipped",
   };

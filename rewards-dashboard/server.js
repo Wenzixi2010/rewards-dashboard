@@ -76,7 +76,7 @@ function describeSchedule(sched) {
     ...sched,
     description: sched.enabled
       ? describeCron(sched.cron) || sched.cron
-      : "Not scheduled",
+      : "未设置定时任务",
   };
 }
 
@@ -93,13 +93,13 @@ function describeRemoteSchedule(sched) {
     description:
       sched.enabled && sched.cron
         ? describeCron(sched.cron) || sched.cron
-        : "Not scheduled",
+        : "未设置定时任务",
     nextRunAt: next ? next.toISOString() : null,
   };
 }
 
 const AUTH_HINT =
-  "Control API rejected our token - CONTROL_API_TOKEN must match the API's API_TOKEN.";
+  "控制 API 拒绝了令牌，请确保 CONTROL_API_TOKEN 与 API 的 API_TOKEN 一致。";
 
 // live
 const backend = {
@@ -179,7 +179,7 @@ hub.on("entry", (entry) => {
     if (entry.id != null)
       lastLogId = lastLogId == null ? entry.id : Math.max(lastLogId, entry.id);
   } catch (e) {
-    log("warn", `Could not ingest a log line: ${e.message}`);
+    log("warn", `无法处理日志行：${e.message}`);
   }
 });
 
@@ -196,7 +196,7 @@ hub.on("status", (status) => {
         summarySeen: Boolean(status.run?.totals),
       });
     } catch (e) {
-      log("warn", `Could not record the run exit: ${e.message}`);
+      log("warn", `无法记录运行退出事件：${e.message}`);
     }
     // Capture /status extras (earnable, searchSummary...) before the next run
     // replaces them, and pull the finished run from /history.
@@ -235,7 +235,7 @@ async function pollOnce() {
 
   if (typeof health.uptimeSec === "number") {
     if (lastHealthUptime != null && health.uptimeSec < lastHealthUptime) {
-      log("warn", "Control API restarted - resetting the log cursor.");
+      log("warn", "控制 API 已重启，正在重置日志读取位置。");
       lastLogId = null;
       // The container (bot + Control API together) can be torn down mid-run
       // for all sorts of ordinary reasons (image update, manual restart,
@@ -256,10 +256,10 @@ async function pollOnce() {
             notStartedAfter: priorHealthyCheckedAt,
           })
         ) {
-          log("warn", "Closed a run stuck 'running' - the backend restarted mid-run.");
+          log("warn", "后端在运行期间重启，已结束停留在运行状态的记录。");
         }
       } catch (e) {
-        log("warn", `Could not close the interrupted run: ${e.message}`);
+        log("warn", `无法结束已中断的运行记录：${e.message}`);
       }
       hub.markUpstreamRestarted();
     }
@@ -270,7 +270,7 @@ async function pollOnce() {
   if (backend.authRequired && !CONTROL_API_TOKEN) {
     backend.authOk = false;
     backend.lastError =
-      "Control API requires a token - set CONTROL_API_TOKEN to the same value as its API_TOKEN.";
+      "控制 API 需要令牌，请将 CONTROL_API_TOKEN 设置为与其 API_TOKEN 相同的值。";
     backend.bot = { state: health.state || "unknown" };
     return;
   }
@@ -285,7 +285,7 @@ async function pollOnce() {
     backend.bot = null;
     if (e.statusCode === 401) authFailed = true;
     backend.lastError =
-      e.statusCode === 401 ? AUTH_HINT : `Status unavailable (${e.message})`;
+      e.statusCode === 401 ? AUTH_HINT : `无法获取状态（${e.message}）`;
   }
 
   // The bot's own /schedule endpoint is optional - older bot images (or ones
@@ -388,7 +388,7 @@ function requireDashboardAuth(res) {
     "Content-Type": "text/plain; charset=utf-8",
     "Cache-Control": "no-store",
   });
-  res.end("Authentication required");
+  res.end("请登录后访问");
 }
 
 function readJsonBody(req, limitBytes = 2_000_000) {
@@ -399,7 +399,7 @@ function readJsonBody(req, limitBytes = 2_000_000) {
       size += chunk.length;
       if (size > limitBytes) {
         req.destroy();
-        reject(new Error("Request body too large"));
+        reject(new Error("请求内容过大"));
         return;
       }
       chunks.push(chunk);
@@ -410,7 +410,7 @@ function readJsonBody(req, limitBytes = 2_000_000) {
       try {
         resolve(JSON.parse(raw));
       } catch {
-        reject(new Error("Invalid JSON body"));
+        reject(new Error("请求内容不是有效的 JSON"));
       }
     });
     req.on("error", reject);
@@ -455,7 +455,7 @@ async function forward(res, method, apiPath, body, retryCompletedStart = true) {
     const payload =
       e.body && typeof e.body === "object"
         ? e.body
-        : { error: e.message || "Control API unreachable" };
+        : { error: e.message || "无法连接控制 API" };
     if (status === 401) payload.hint = AUTH_HINT;
     return sendJson(res, status, payload);
   }
@@ -465,13 +465,13 @@ function serveStatic(res, pathname) {
   const rel = pathname === "/" ? "/index.html" : pathname;
   const filePath = path.join(PUBLIC_DIR, rel);
   if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    return res.end("Forbidden");
+    res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+    return res.end("禁止访问");
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      return res.end("Not found");
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("未找到资源");
     }
     res.writeHead(200, {
       "Content-Type":
@@ -492,13 +492,13 @@ function serveThemeIndex(res) {
 function serveThemeFile(res, filename) {
   const filePath = path.join(THEMES_DIR, filename);
   if (!filePath.startsWith(THEMES_DIR)) {
-    res.writeHead(403);
-    return res.end("Forbidden");
+    res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+    return res.end("禁止访问");
   }
   fs.readFile(filePath, "utf8", (err, data) => {
     if (err) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      return res.end("Not found");
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("未找到资源");
     }
     res.writeHead(200, {
       "Content-Type": "text/javascript; charset=utf-8",
@@ -662,7 +662,7 @@ async function handleApi(req, res, url) {
         if (backend.remoteScheduleSupported !== true) {
           return sendJson(res, 409, {
             error:
-              "The bot's Control API does not support remote scheduling. Upgrade the bot image and set API_ALLOW_SCHEDULE_WRITE=true, or use the dashboard's own scheduler instead.",
+              "脚本的控制 API 不支持远程定时任务。请升级脚本镜像并设置 API_ALLOW_SCHEDULE_WRITE=true，或使用面板自带的定时任务。",
           });
         }
         try {
@@ -679,7 +679,7 @@ async function handleApi(req, res, url) {
           const payload =
             e.body && typeof e.body === "object"
               ? e.body
-              : { error: e.message || "Control API unreachable" };
+              : { error: e.message || "无法连接控制 API" };
           return sendJson(res, status, payload);
         }
       }
@@ -708,7 +708,7 @@ async function handleApi(req, res, url) {
       description: valid ? describeCron(expr) : null,
       error: valid
         ? null
-        : "Needs 5 fields: minute hour day-of-month month day-of-week.",
+        : "需要 5 个字段：分钟、小时、日期、月份、星期。",
     });
   }
 
@@ -743,10 +743,10 @@ async function handleApi(req, res, url) {
       .split("/")
       .filter(Boolean)
       .map(decodeURIComponent);
-    if (parts.length !== 2) return sendJson(res, 404, { error: "Not found" });
+    if (parts.length !== 2) return sendJson(res, 404, { error: "未找到资源" });
     const [name, file] = parts;
     if (!/^error-[A-Za-z0-9._:-]+$/.test(name) || !DIAG_FILES.has(file)) {
-      return sendJson(res, 400, { error: "Invalid diagnostics path" });
+      return sendJson(res, 400, { error: "诊断文件路径无效" });
     }
     try {
       const upstream = await client.stream(
@@ -770,7 +770,7 @@ async function handleApi(req, res, url) {
 
   if (pathname.startsWith("/api/sessions/") && method === "DELETE") {
     const email = pathname.slice("/api/sessions/".length);
-    if (!email) return sendJson(res, 400, { error: "Missing account email" });
+    if (!email) return sendJson(res, 400, { error: "缺少账号邮箱" });
     return forward(res, "DELETE", `/sessions/${email}`);
   }
 
@@ -780,7 +780,7 @@ async function handleApi(req, res, url) {
     const email = decodeURIComponent(
       pathname.slice("/api/dashboard-accounts/".length),
     );
-    if (!email) return sendJson(res, 400, { error: "Missing account email" });
+    if (!email) return sendJson(res, 400, { error: "缺少账号邮箱" });
     try {
       store.deleteAccount(email);
       hub.broadcast("state", currentState());
@@ -794,7 +794,7 @@ async function handleApi(req, res, url) {
   if (pathname.startsWith("/api/control/") && method === "POST") {
     const action = pathname.slice("/api/control/".length);
     if (!["start", "stop", "restart", "shutdown"].includes(action)) {
-      return sendJson(res, 404, { error: "Unknown control action" });
+      return sendJson(res, 404, { error: "未知的控制操作" });
     }
     const body = await readJsonBody(req);
     return forward(res, "POST", `/${action}`, body);
@@ -810,7 +810,7 @@ async function handleApi(req, res, url) {
     });
   }
 
-  return sendJson(res, 404, { error: "Not found", path: pathname });
+  return sendJson(res, 404, { error: "未找到资源", path: pathname });
 }
 
 const server = http.createServer((req, res) => {
@@ -826,7 +826,7 @@ const server = http.createServer((req, res) => {
 
   if (pathname.startsWith("/api/")) {
     return handleApi(req, res, url).catch((e) => {
-      log("error", `Request failed: ${e.message}`);
+      log("error", `请求失败：${e.message}`);
       if (!res.headersSent) sendJson(res, 500, { error: e.message });
     });
   }
@@ -835,26 +835,26 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  log("info", `Rewards dashboard listening on :${PORT}`);
+  log("info", `Rewards 面板正在监听端口 ${PORT}`);
   log(
     "info",
-    `Control API: ${CONTROL_API_URL}${CONTROL_API_TOKEN ? " (token set)" : " (no token)"}`,
+    `控制 API：${CONTROL_API_URL}${CONTROL_API_TOKEN ? "（已设置令牌）" : "（未设置令牌）"}`,
   );
   if (!CONTROL_API_TOKEN) {
     log(
       "warn",
-      "CONTROL_API_TOKEN is empty - this only works if the Control API runs without an API_TOKEN.",
+      "CONTROL_API_TOKEN 为空，只有控制 API 未设置 API_TOKEN 时才能连接。",
     );
   }
   if (Boolean(DASHBOARD_USERNAME) !== Boolean(DASHBOARD_PASSWORD)) {
     log(
       "warn",
-      "Dashboard authentication is disabled because both DASHBOARD_USERNAME and DASHBOARD_PASSWORD must be set.",
+      "面板登录验证已关闭，需要同时设置 DASHBOARD_USERNAME 和 DASHBOARD_PASSWORD 才能启用。",
     );
   }
   log(
     "info",
-    `Dashboard authentication: ${DASHBOARD_AUTH_ENABLED ? `enabled (user: ${DASHBOARD_USERNAME})` : "disabled"}`,
+    `面板登录验证：${DASHBOARD_AUTH_ENABLED ? `已启用（用户名：${DASHBOARD_USERNAME}）` : "已关闭"}`,
   );
   scheduler.init();
   backend.schedule = describeSchedule(scheduler.get());
@@ -863,7 +863,7 @@ server.listen(PORT, () => {
 });
 
 function shutdown() {
-  log("info", "Shutting down…");
+  log("info", "正在关闭…");
   scheduler.stop();
   hub.stop();
   store.close();

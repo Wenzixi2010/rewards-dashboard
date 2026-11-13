@@ -9,7 +9,7 @@ async function call(method, path, body) {
   try {
     res = await fetch(path, opts);
   } catch {
-    throw new Error("Dashboard server unreachable");
+    throw new Error("无法连接面板服务器");
   }
 
   const text = await res.text();
@@ -25,7 +25,7 @@ async function call(method, path, body) {
   if (!res.ok) {
     const err = new Error(
       (data && (data.error || data.message)) ||
-      `Request failed (${res.status})`,
+      `请求失败（${res.status}）`,
     );
     err.status = res.status;
     err.body = data;

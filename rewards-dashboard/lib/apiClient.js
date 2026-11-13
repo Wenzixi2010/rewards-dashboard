@@ -41,7 +41,7 @@ class ControlApiClient {
       try {
         target = this._target(pathAndQuery);
       } catch (e) {
-        return reject(new ApiError(`Bad Control API URL: ${e.message}`));
+        return reject(new ApiError(`控制 API 地址无效：${e.message}`));
       }
 
       const payload =
@@ -76,7 +76,7 @@ class ControlApiClient {
             if (status >= 400) {
               const message =
                 (parsed && (parsed.error || parsed.message)) ||
-                `Control API ${target.pathname} -> ${status}`;
+                `控制 API ${target.pathname} 请求失败（状态码 ${status}）`;
               return reject(
                 new ApiError(message, { statusCode: status, body: parsed }),
               );
@@ -87,7 +87,7 @@ class ControlApiClient {
       );
 
       req.on("timeout", () =>
-        req.destroy(new ApiError("Control API request timed out")),
+        req.destroy(new ApiError("控制 API 请求超时")),
       );
       req.on("error", (err) =>
         reject(err instanceof ApiError ? err : new ApiError(err.message)),
@@ -116,7 +116,7 @@ class ControlApiClient {
       try {
         target = this._target(pathAndQuery);
       } catch (e) {
-        return reject(new ApiError(`Bad Control API URL: ${e.message}`));
+        return reject(new ApiError(`控制 API 地址无效：${e.message}`));
       }
       const lib = target.protocol === "https:" ? https : http;
       const req = lib.request(
@@ -131,7 +131,7 @@ class ControlApiClient {
             res.resume();
             return reject(
               new ApiError(
-                `Control API ${target.pathname} -> ${res.statusCode}`,
+                `控制 API ${target.pathname} 请求失败（状态码 ${res.statusCode}）`,
                 { statusCode: res.statusCode },
               ),
             );
@@ -140,7 +140,7 @@ class ControlApiClient {
         },
       );
       req.on("timeout", () =>
-        req.destroy(new ApiError("Control API request timed out")),
+        req.destroy(new ApiError("控制 API 请求超时")),
       );
       req.on("error", (err) =>
         reject(err instanceof ApiError ? err : new ApiError(err.message)),
@@ -156,7 +156,7 @@ class ControlApiClient {
       try {
         target = this._target(`/events?${q.toString()}`);
       } catch (e) {
-        return reject(new ApiError(`Bad Control API URL: ${e.message}`));
+        return reject(new ApiError(`控制 API 地址无效：${e.message}`));
       }
 
       const headers = this._headers({
@@ -170,7 +170,7 @@ class ControlApiClient {
         if ((res.statusCode || 0) !== 200) {
           res.resume();
           return reject(
-            new ApiError(`Control API /events -> ${res.statusCode}`, {
+            new ApiError(`控制 API /events 请求失败（状态码 ${res.statusCode}）`, {
               statusCode: res.statusCode,
             }),
           );

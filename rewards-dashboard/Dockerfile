@@ -3,8 +3,8 @@ FROM node:24-slim
 WORKDIR /usr/src/rewards-dashboard
 
 ENV NODE_ENV=production
-# Everything persistent (point history, runs, activity, schedule) lives here.
-# Mount a volume at /data or it's lost when the container is replaced.
+# 所有持久化数据（积分历史、运行记录、活动和定时任务）均保存在此目录。
+# 请为 /data 挂载数据卷，否则替换容器时这些数据会丢失。
 ENV DATA_DIR=/data
 
 COPY package.json ./
