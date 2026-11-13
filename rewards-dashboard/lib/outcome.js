@@ -17,7 +17,13 @@ function completedBotOutcome(bot) {
   const run = bot?.run;
   if (!run?.finished) return null;
 
-  const exit = bot.lastExit;
+  // Some APIs keep the previous exit while the next run is still finishing.
+  // Only use an exit that belongs to this run, or the API's idle snapshot.
+  const startedAt = Date.parse(bot.startedAt || run.startedAt);
+  const exitedAt = Date.parse(bot.lastExit?.at);
+  const exit = bot.state === "idle" ||
+    (Number.isFinite(startedAt) && Number.isFinite(exitedAt) && exitedAt >= startedAt)
+    ? bot.lastExit : null;
   // An explicit failure outranks anything that merely looks like a stop.
   if (run.status === "failed") return "error";
   if (run.status === "stopped" || run.status === "cancelled") return "stopped";
@@ -30,6 +36,10 @@ function completedBotOutcome(bot) {
   if (exit?.signal) return "error";
   if (run.status === "partial") return run.totals ? "success" : "error";
   if (exit?.code != null && exit.code !== 0) return "error";
+  // v4.3.3 can exit normally after reporting failed activities. Its account
+  // result is more specific than the process exit code.
+  if (!run.status && (run.accounts || []).some((account) => account.success === false))
+    return "error";
   return "success";
 }
 

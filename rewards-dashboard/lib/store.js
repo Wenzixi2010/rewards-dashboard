@@ -741,14 +741,19 @@ class Store {
       }
       case "earnable": {
         // Only fields the line actually reports are replaced (app points arrive separately).
+        const candidates = event.email ? [] : this.stmts.allAccounts.all().filter(
+          (account) => account.userName === event.userName && account.status === "running",
+        );
+        const email = event.email || (candidates.length === 1 ? candidates[0].email : null);
+        if (!email) { changed = false; break; }
         let current = {};
         try {
-          current = JSON.parse(this.stmts.getEarnable.get(event.email)?.value || "{}");
+          current = JSON.parse(this.stmts.getEarnable.get(email)?.value || "{}");
         } catch { /* start fresh */ }
         for (const key of ["mobile", "browser", "app"]) {
           if (key in event) current[key] = event[key];
         }
-        this.stmts.setEarnable.run(JSON.stringify(current), event.email);
+        this.stmts.setEarnable.run(JSON.stringify(current), email);
         break;
       }
       case "activity-result": {
@@ -821,6 +826,22 @@ class Store {
           nextEmail: event.nextEmail || null,
         };
         this._pushActivity(event);
+        break;
+      }
+      case "run-skipped": {
+        const running = this.stmts.findRunningRun.get();
+        if (running) {
+          this._closeRunningRun(running, "skipped", event.ts);
+          this._recentRunEnd = { id: running.id, ts: event.ts, status: "skipped" };
+        }
+        this._pushActivity(event);
+        break;
+      }
+      case "controller-exit": {
+        this.closeRunOnExit(
+          { code: event.code, signal: event.signal, status: event.error ? "failed" : null, at: event.ts },
+          { fromLog: true },
+        );
         break;
       }
       case "streak-protection": {

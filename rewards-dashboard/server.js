@@ -17,6 +17,7 @@ const { generateIndexModule, THEMES_DIR } = require("./lib/themeLoader");
 const { PendingLoginCodes } = require("./lib/pendingLoginCodes");
 const { mergeAccounts } = require("./lib/accounts");
 const { ActivityStore } = require("./lib/activityStore");
+const { ControlDataStore } = require("./lib/controlData");
 
 // confg
 const PORT = Number(process.env.PORT || 8890);
@@ -54,6 +55,7 @@ const activity = new ActivityStore(store.db, {
   log,
   resetHourUtc: process.env.ACTIVITY_RESET_HOUR_UTC ? Number(process.env.ACTIVITY_RESET_HOUR_UTC) : null,
 });
+const controlData = new ControlDataStore(store.db);
 
 const scheduler = new Scheduler({
   client,
@@ -120,6 +122,104 @@ const backend = {
 let lastLogId = null;
 let lastHealthUptime = null;
 let lastHealthyCheckedAt = null;
+let controlHistoryKey = null;
+let controlHistoryAt = 0;
+let controlHistoryRetryAt = 0;
+let controlHistoryRequest = null;
+let accountCache = { accounts: [], at: 0 };
+let accountRequest = null;
+let botStatusRevision = 0;
+
+function setBotStatus(status) {
+  backend.bot = status;
+  botStatusRevision++;
+}
+
+// A polling response may arrive after a newer SSE event or another reader.
+// Keep that newer snapshot, including when the older request fails.
+async function readBotStatus() {
+  const revision = botStatusRevision;
+  try {
+    const status = await client.get("/status");
+    if (revision === botStatusRevision) setBotStatus(status);
+    return backend.bot;
+  } catch (error) {
+    if (revision !== botStatusRevision) return backend.bot;
+    throw error;
+  }
+}
+
+function legacyStatus(status) {
+  const version = status?.version || backend.version;
+  const major = Number.parseInt(version, 10);
+  return major > 0 && major < 5 ? { ...status, version } : null;
+}
+
+// The v4 API retains full balances only in its latest /status result. Save
+// them before the next run resets it, and recover older outcomes from history.
+// This storage is independent of the ordered log cursor and is idempotent.
+async function syncControlData(status) {
+  const snapshot = status && legacyStatus(status);
+  if (!snapshot) return;
+  if (controlHistoryRequest) {
+    await controlHistoryRequest;
+    controlData.ingestStatus(snapshot);
+    return;
+  }
+
+  const now = Date.now();
+  const key = snapshot.lastExit?.at || null;
+  const due = now >= controlHistoryRetryAt &&
+    (!controlHistoryAt || key !== controlHistoryKey || now - controlHistoryAt >= 60000);
+  if (!due) {
+    controlData.ingestStatus(snapshot);
+    return;
+  }
+
+  controlHistoryRequest = (async () => {
+    try {
+      const history = await client.get("/history?limit=100");
+      controlData.ingestHistory(history.runs || []);
+      controlHistoryKey = key;
+      controlHistoryAt = Date.now();
+      controlHistoryRetryAt = 0;
+    } catch (error) {
+      controlHistoryRetryAt = Date.now() + 60000;
+      log("warn", `无法同步控制 API 运行历史：${error.message}`);
+    }
+    controlData.ingestStatus(snapshot);
+  })();
+  try {
+    await controlHistoryRequest;
+  } finally {
+    controlHistoryRequest = null;
+  }
+}
+
+// Overview and Accounts request the same roster concurrently. Share the
+// sanitized API response so both views count configured accounts consistently.
+async function readControlAccounts() {
+  if (Date.now() - accountCache.at < 4000)
+    return { accounts: accountCache.accounts, apiError: null };
+  if (accountRequest) return accountRequest;
+  accountRequest = (async () => {
+    try {
+      const data = await client.get("/accounts");
+      accountCache = { accounts: Array.isArray(data.accounts) ? data.accounts : [], at: Date.now() };
+      return { accounts: accountCache.accounts, apiError: null };
+    } catch (error) {
+      return {
+        accounts: accountCache.accounts,
+        apiError: error.statusCode === 401 ? AUTH_HINT : error.message,
+      };
+    }
+  })();
+  try {
+    return await accountRequest;
+  } finally {
+    accountRequest = null;
+  }
+}
 
 function currentState() {
   const botOutcome = completedBotOutcome(backend.bot);
@@ -185,7 +285,12 @@ hub.on("entry", (entry) => {
 
 hub.on("status", (status) => {
   const wasRunning = Boolean(backend.bot && backend.bot.state !== "idle");
-  backend.bot = status;
+  setBotStatus(status);
+  syncControlData(status).then(() => {
+    hub.broadcast("state", currentState());
+  }).catch((error) => {
+    log("warn", `无法保存控制 API 运行结果：${error.message}`);
+  });
 
   if (status.reason === "exit" && wasRunning && status.lastExit) {
     try {
@@ -218,7 +323,7 @@ async function pollOnce() {
     backend.authOk = false;
     backend.lastError = AUTH_HINT;
     backend.checkedAt = new Date().toISOString();
-    backend.bot = { state: "unknown" };
+    setBotStatus({ state: "unknown" });
     return;
   }
   backend.reachable = true;
@@ -271,21 +376,28 @@ async function pollOnce() {
     backend.authOk = false;
     backend.lastError =
       "控制 API 需要令牌，请将 CONTROL_API_TOKEN 设置为与其 API_TOKEN 相同的值。";
-    backend.bot = { state: health.state || "unknown" };
+    setBotStatus({ state: health.state || "unknown" });
     return;
   }
 
   let authFailed = false;
 
   try {
-    backend.bot = await client.get("/status");
+    await readBotStatus();
   } catch (e) {
     // Do not keep reporting a previous "running" snapshot when the status
     // endpoint is unavailable (for example while the Control API restarts).
-    backend.bot = null;
+    setBotStatus(null);
     if (e.statusCode === 401) authFailed = true;
     backend.lastError =
       e.statusCode === 401 ? AUTH_HINT : `无法获取状态（${e.message}）`;
+  }
+  if (backend.bot && !authFailed) {
+    try {
+      await syncControlData(backend.bot);
+    } catch (error) {
+      log("warn", `无法保存控制 API 运行结果：${error.message}`);
+    }
   }
 
   // The bot's own /schedule endpoint is optional - older bot images (or ones
@@ -314,7 +426,7 @@ async function pollLoop() {
         activity.syncSoon(client, backend.bot);
     } catch (e) {
       backend.reachable = false;
-      backend.bot = null;
+      setBotStatus(null);
       backend.lastError = e.message;
       backend.checkedAt = new Date().toISOString();
     }
@@ -424,13 +536,12 @@ async function waitForCompletedBotToIdle() {
   while (Date.now() < deadline) {
     let status;
     try {
-      status = await client.get("/status");
+      status = await readBotStatus();
     } catch {
       return false;
     }
-    backend.bot = status;
     hub.broadcast("state", currentState());
-    if (status.state === "idle") return true;
+    if (status?.state === "idle") return true;
     if (!completedBotOutcome(status)) return false;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
@@ -522,23 +633,25 @@ async function handleApi(req, res, url) {
 
   // read
   if (pathname === "/api/summary" && method === "GET") {
+    const { accounts: configured, apiError } = await readControlAccounts();
+    const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    const histories = controlData.mergeHistories(store.allAccountHistories({ since }), { since });
     return sendJson(res, 200, {
       status: currentState(),
-      accounts: store.snapshotAccounts(),
-      runs: store.snapshotRuns(30),
+      accounts: mergeAccounts(
+        configured,
+        controlData.mergeAccounts(store.snapshotAccounts(), backend.bot),
+        histories,
+        store.accountActivities(),
+      ),
+      runs: controlData.mergeRuns(store.snapshotRuns(100), { limit: 30 }),
       activity: store.snapshotActivity(120),
+      apiError,
     });
   }
 
   if (pathname === "/api/accounts" && method === "GET") {
-    let apiAccounts = [];
-    let apiError = null;
-    try {
-      const data = await client.get("/accounts");
-      apiAccounts = data.accounts || [];
-    } catch (e) {
-      apiError = e.statusCode === 401 ? AUTH_HINT : e.message;
-    }
+    const { accounts: apiAccounts, apiError } = await readControlAccounts();
     const historyDays = Math.min(
       3650,
       Math.max(0, Number(searchParams.get("historyDays")) || 0),
@@ -553,11 +666,13 @@ async function handleApi(req, res, url) {
         ).toISOString()
         : null;
     const histories =
-      effectiveHistoryDays > 0 ? store.allAccountHistories({ since }) : {};
+      effectiveHistoryDays > 0
+        ? controlData.mergeHistories(store.allAccountHistories({ since }), { since })
+        : {};
     return sendJson(res, 200, {
       accounts: mergeAccounts(
         apiAccounts,
-        store.snapshotAccounts(),
+        controlData.mergeAccounts(store.snapshotAccounts(), backend.bot),
         histories,
         store.accountActivities(),
       ),
@@ -577,11 +692,15 @@ async function handleApi(req, res, url) {
     try {
       const data = await client.get(`/history?limit=${limit}`);
       exits = data.runs || [];
+      if (legacyStatus(backend.bot)) {
+        controlData.ingestHistory(exits);
+        controlData.ingestStatus(backend.bot);
+      }
     } catch (e) {
       apiError = e.statusCode === 401 ? AUTH_HINT : e.message;
     }
     return sendJson(res, 200, {
-      runs: store.snapshotRuns(limit),
+      runs: controlData.mergeRuns(store.snapshotRuns(Math.min(500, limit * 2)), { limit }),
       exits,
       apiError,
     });
@@ -782,6 +901,7 @@ async function handleApi(req, res, url) {
     );
     if (!email) return sendJson(res, 400, { error: "缺少账号邮箱" });
     try {
+      controlData.deleteAccount(email);
       store.deleteAccount(email);
       hub.broadcast("state", currentState());
       return sendJson(res, 200, { ok: true });

@@ -124,7 +124,7 @@ async function runAccount(account) {
 }
 
 function renderStats(root, status) {
-  const accounts = data?.accounts || [];
+  const accounts = accountsPayload?.accounts || data?.accounts || [];
   const runs = data?.runs || [];
   const lastRun = runs.find((r) => r.status === "done") || runs[0] || null;
   const liveByEmail = U.runAccountMap(status);
@@ -137,7 +137,9 @@ function renderStats(root, status) {
 
   const errorCount = accounts.filter((a) => accountStatus(a) === "error").length;
   const anyRunning = accounts.some((a) => accountStatus(a) === "running");
-  const combined = accounts.reduce((sum, a) => sum + (a.lastPoints || 0), 0);
+  const combined = accounts.every((account) => account.lastPoints != null && Number.isFinite(account.lastPoints))
+    ? accounts.reduce((sum, account) => sum + account.lastPoints, 0)
+    : null;
   const sched = activeSchedule(status);
 
   U.$("#statGrid", root).innerHTML = [

@@ -188,7 +188,12 @@ class ControlApiClient {
 
 function entryToDockerLine(entry) {
   if (!entry) return null;
-  const line = entry.raw != null ? entry.raw : reconstructAppLine(entry);
+  // v4 controller entries carry a plain message in raw, unlike application
+  // logs. Rebuild only this trusted source so its process exits reach Store.
+  const controller = entry.source === "controller" && entry.title === "CONTROLLER";
+  const line = controller
+    ? reconstructAppLine({ ...entry, parsed: true })
+    : entry.raw != null ? entry.raw : reconstructAppLine(entry);
   if (line == null) return null;
   return `${syntheticTs(entry)} ${line}`;
 }
@@ -202,7 +207,7 @@ function syntheticTs(entry) {
 
 function reconstructAppLine(entry) {
   if (!entry.parsed || !entry.title) return null;
-  const appTime = entry.ts || "";
+  const appTime = entry.ts || entry.receivedAt || new Date().toISOString();
   const user = entry.user || "main";
   const level = (entry.level || "info").toUpperCase();
   const platform = entry.platform || "MAIN";

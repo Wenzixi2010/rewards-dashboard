@@ -91,13 +91,19 @@ function renderRuns() {
 
 function exitPill(run) {
   const exit = run?.exit;
+  if (["error", "failed", "crashed"].includes(run?.status) || exit?.error)
+    return U.statusPill("error");
   if (run?.status === "interrupted") return U.statusPill("interrupted");
-  if (run?.status === "stopped" || run?.status === "cancelled" || exit?.signal || [130, 137, 143].includes(exit?.code))
+  if (run?.status === "stopped" || run?.status === "cancelled" || ["SIGINT", "SIGTERM", "SIGKILL", "SIGHUP"].includes(exit?.signal) || [130, 137, 143].includes(exit?.code))
     return U.statusPill("stopped");
+  if (run?.status === "partial") return U.statusPill("partial");
+  if (exit?.signal || (exit?.code != null && exit.code !== 0))
+    return U.statusPill("error");
+  // v4 can finish with code 0 even when individual activities failed.
+  if (!run?.status && (run?.accounts || []).some((account) => account.success === false))
+    return U.statusPill("partial");
   if (["done", "success", "partial", "full", "completed"].includes(run?.status) || exit?.code === 0)
     return U.statusPill("success");
-  if (["error", "failed", "crashed"].includes(run?.status) || exit?.error || exit?.code != null)
-    return U.statusPill("error");
   return U.statusPill("idle");
 }
 
@@ -186,7 +192,7 @@ export default {
             <section class="panel" aria-labelledby="runs-table-heading">
                 <div class="panel-head">
                     <h2 id="runs-table-heading">运行历史</h2>
-                    <span class="panel-sub">从脚本输出的日志中解析</span>
+                    <span class="panel-sub">脚本日志与控制 API 的运行结果</span>
                 </div>
                 <div class="table-wrap">
                     <table>

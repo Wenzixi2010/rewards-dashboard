@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rewards-dashboard-pwa-v7-zh-CN'
+const CACHE_NAME = 'rewards-dashboard-pwa-v8-chiihero'
 const ASSETS = [
   '/',
   '/index.html',

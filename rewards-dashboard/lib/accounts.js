@@ -48,9 +48,19 @@ function parseCounts(raw) {
 
 function buildRow({ config, local, histories, activities }) {
   const email = (local && local.email) || (config && config.email) || "unknown";
-  const history = (local && histories && histories[local.email]) || [];
+  const history = histories?.[email] || histories?.[normalizeEmail(email)] || [];
   const apiProtection = config ? (config.streakProtection ?? null) : null;
   const dayActivities = (local && activities && activities[local.email]) || [];
+  const localStart = Date.parse(local?.lastStartAt);
+  const localEnd = Date.parse(local?.lastEndAt);
+  const apiEnd = Date.parse(config?.lastRunAt);
+  // /accounts timestamps are run-level end times. They cannot supersede an
+  // earlier account completion in that same run; use them only as a fallback.
+  const useApiResult = Number.isFinite(apiEnd) &&
+    !Number.isFinite(localStart) && !Number.isFinite(localEnd);
+  const apiStatus = config?.lastSuccess === true
+    ? "success"
+    : config?.lastSuccess === false ? "error" : "idle";
 
   return {
     // identity
@@ -77,14 +87,16 @@ function buildRow({ config, local, histories, activities }) {
     apiLastSuccess: config ? (config.lastSuccess ?? null) : null,
 
     // what the dashboard itself observed in the log stream
-    status: local ? local.status : "idle",
+    status: useApiResult ? apiStatus : local ? local.status : "idle",
     userName: local ? local.userName : null,
     lastStartAt: local ? local.lastStartAt : null,
-    lastEndAt: local ? local.lastEndAt : null,
-    lastGained: local ? local.lastGained : null,
+    lastEndAt: useApiResult ? config.lastRunAt : local ? local.lastEndAt : null,
+    lastGained: useApiResult ? (config.lastCollected ?? null) : local ? local.lastGained : null,
     lastPoints: local ? local.lastPoints : null,
-    lastDurationSec: local ? local.lastDurationSec : null,
-    lastOutcome: local ? (local.lastOutcome ?? null) : null,
+    lastDurationSec: useApiResult ? null : local ? local.lastDurationSec : null,
+    lastOutcome: useApiResult
+      ? config.lastSuccess === true ? "completed" : config.lastSuccess === false ? "failed" : null
+      : local ? (local.lastOutcome ?? null) : null,
     // Per-activity results and tallies parsed from the bot's own log lines.
     activities: dayActivities,
     activityCounts: local ? parseCounts(local.lastActivityCounts) : null,
@@ -92,7 +104,9 @@ function buildRow({ config, local, histories, activities }) {
     // Once we've observed an account finish, our own record is the answer: a
     // clean result must not fall back to an older error the API still holds.
     lastError:
-      local && local.lastEndAt
+      useApiResult
+        ? config.lastError || null
+        : local && local.lastEndAt
         ? local.lastError
         : (local && local.lastError) || (config && config.lastError) || null,
     streakProtectionEnabled:

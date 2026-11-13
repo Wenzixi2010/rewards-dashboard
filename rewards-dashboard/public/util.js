@@ -401,11 +401,18 @@ export function runAccountMap(status) {
 }
 
 export function accountDisplayStatus(account, runAccount, runActive = false) {
-  const watchdogStall =
-    account.status === "error" &&
-    account.lastError === "Run stalled before this account finished";
-  if (watchdogStall && runActive && runAccount && runAccount.success == null)
+  // The current API roster remains useful when an account's log has not yet
+  // arrived (or when the dashboard joined midway through the v4 run).
+  if (runActive && runAccount) {
+    const reported = {
+      completed: "success", full: "success", partial: "success",
+      failed: "error", skipped: "skipped", cancelled: "stopped", stopped: "stopped",
+    }[runAccount.status];
+    if (reported) return reported;
+    if (runAccount.success === true) return "success";
+    if (runAccount.success === false) return "error";
     return "running";
+  }
   return account.status;
 }
 

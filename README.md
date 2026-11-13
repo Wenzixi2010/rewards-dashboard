@@ -2,6 +2,14 @@
 
 这是 [microsoft-rewards-script](https://github.com/thenetsky/microsoft-rewards-script) 的配套积分面板，界面和使用说明已汉化为简体中文。面板通过 HTTP 连接脚本的[控制 API](https://github.com/thenetsky/microsoft-rewards-script/tree/v4/scripts/api)（`API_MODE=true`），在 `http://<host-ip>:8890` 展示账号状态、积分余额和变化趋势，并支持启动、停止和定时运行，以及编辑脚本配置。
 
+## 兼容后端
+
+已适配 [chiihero/Microsoft-Rewards-Script 的 V4-china 分支](https://github.com/chiihero/Microsoft-Rewards-Script/tree/V4-china)（`v4.3.3`）。面板同时识别该分支的中文运行日志和原版英文日志，支持账号与运行起止、失败、账号间隔、积分摘要、连续签到保护及免密登录确认码。
+
+主统计会合并控制 API 的配置账号、运行结果和已知余额，并保存 API 提供的历史记录。最新一次运行的完整余额和耗时从 `/status` 捕获；已有 v4 活动快照中的积分数据也可用于恢复主统计。日志与 API 报告的同一次运行在展示时合并，避免重复累计。
+
+本次获得积分为 `0` 时仍按 `0` 显示；尚未取得余额时显示 `–`。v4 的 `/history` 不包含旧账号余额和耗时，因此只能恢复 API 或面板已经保存的数据。概览按 `TZ` 统计自然日；活动页按 Rewards 结算日归组，默认结算时间为 `08:00 UTC`，可通过 `ACTIVITY_RESET_HOUR_UTC` 设置，两个页面的日期可能不同。
+
 ## 截图
 
 以下截图来自原项目，用于展示桌面端和移动端布局。

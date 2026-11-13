@@ -11,9 +11,16 @@ const APP_LINE_RE =
 
 const ACCOUNT_START_RE =
   /^Starting account:\s(\S+)\s\|\sgeoLocale:\s([^|]*?)\s*(?:\|.*)?$/;
+const ACCOUNT_START_ZH_RE =
+  /^开始处理账户:\s(\S+)\s\|\sgeoLocale:\s([^|]*?)\s*(?:\|.*)?$/;
 const ACCOUNT_END_RE =
   /^(?:Completed|Finished) account:\s(\S+)\s\|\spointsGained=(-?\d+(?:\.\d+)?|unknown)\s\|\spreviousBalance=(\d+(?:\.\d+)?)\s\|\scurrentBalance=(\d+(?:\.\d+)?)\s\|\sdurationSeconds=([\d.]+)(?:\s\|\sstatus=(\S+))?(?:\s\|\sreason=("(?:[^"\\]|\\.)*"|[\s\S]*?))?(?:\s\|\sactivities:\s([\s\S]*))?$/;
+const ACCOUNT_END_ZH_RE =
+  /^账户(?:完成|存在失败活动):\s(\S+)\s\|\s获得积分=(-?\d+(?:\.\d+)?)\s\|\s原余额=(\d+(?:\.\d+)?)\s\|\s现余额=(\d+(?:\.\d+)?)\s\|\s持续秒数=([\d.]+)$/;
 const ACCOUNT_ERR_RE = /^(\S+@\S+):\s([\s\S]*)$/;
+const ACCOUNT_ERR_ZH_RE = /^(\S+@\S+)\s\|\s错误=([\s\S]*)$/;
+const ACCOUNT_SKIP_RE = /^Skipped account: (\S+) \| reason=(\S+)/;
+const ACCOUNT_SKIP_ZH_RE = /^跳过账户: (\S+) \| 原因=(\S+)(?: \| 持续秒数=[\d.]+)?$/;
 
 // "<activity> | <state> | points earned: <n|unverified>[ | <detail>]"
 const ACTIVITY_RESULT_RE =
@@ -57,28 +64,42 @@ function activityStatus(state) {
 // flow failed" - all three are accepted.
 const FLOW_FAILED_RE =
   /^(?:Mobile|Desktop|Account) flow failed for\s(\S+@\S+):\s([\s\S]*)$/;
+const FLOW_FAILED_ZH_RE =
+  /^(\S+@\S+) 的(?:移动端|桌面端|账户)流程失败:\s([\s\S]*)$/;
 const RUN_START_RE =
   /^Starting Microsoft Rewards Script\s\|\sv([\w.\-]+)\s\|\sAccounts:\s(\d+)\s\|\sClusters:\s(\d+)$/;
+const RUN_START_ZH_RE =
+  /^启动微软奖励脚本\s\|\sv([\w.\-]+)\s\|\s账户数:\s(\d+)\s\|\s集群数:\s(\d+)$/;
 const RUN_END_RE =
   /^(?:Completed all accounts|Run interrupted)\s\|\saccountsProcessed=(\d+)\s\|\spointsGained=(-?\d+(?:\.\d+)?|unknown)\s\|\spreviousBalance=(\d+(?:\.\d+)?)\s\|\scurrentBalance=(\d+(?:\.\d+)?)\s\|\sruntimeMinutes=([\d.]+)(?:\s\|\sstatus=(\S+))?$/;
+const RUN_END_ZH_RE =
+  /^(?:全部账户完成|账户处理结束，存在失败活动)\s\|\s处理账户数=(\d+)\s\|\s获得积分=(-?\d+(?:\.\d+)?)\s\|\s原余额=(\d+(?:\.\d+)?)\s\|\s现余额=(\d+(?:\.\d+)?)\s\|\s运行分钟数=([\d.]+)$/;
+const RUN_SKIP_ZH_RE =
+  /^今天已成功完成过一次运行，按 humanize\.skipWhenCompletedToday 跳过本次运行$/;
 // src/index.ts's waitBeforeNextAccount() - with accountDelay, accounts start
 // one at a time now rather than together, so this wait can be a large
 // fraction of the run's total time.
 const ACCOUNT_DELAY_RE =
   /^Waiting\s([\d.]+)\sseconds before starting the next account(?:\s\((\S+@\S+)\))?(?:\s\|\swaitMs=\d+)?$/;
+const ACCOUNT_DELAY_ZH_RE =
+  /^等待 ([\d.]+) 秒后开始下一个账户(?: \((\S+@\S+)\))?$/;
 // v5 logs streakProtectionEnabled=null when the protection state couldn't be
 // read, so "null" is a valid value alongside true/false.
 const STREAK_PROTECTION_RE =
   /^Snapshot complete\s\|\soffers=\d+\s\|\sreportable=\d+\s\|\sstreaks=\d+\s\|\sstreakProtectionEnabled=(?<enabled>true|false|null)\s\|\sstreakProtectionRemainingDays=(?<days>\d+|null)\s\|\sstreakCounter=(?<counter>\d+|null)\s\|\slevel=[^|]+\s\|\saccount=(?<email>\S+@\S+)$/;
+const STREAK_PROTECTION_ZH_RE =
+  /^快照完成\s\|\soffers=\d+\s\|\s可上报=\d+\s\|\sstreaks=\d+\s\|\s连续保护已启用=(?<enabled>true|false|null)\s\|\s连续保护剩余天数=(?<days>\d+|null)\s\|\s连续计数=(?<counter>\d+|null)\s\|\s等级=[^|]+\s\|\s账户=(?<email>\S+@\S+)$/;
 
 // src/browser/auth/methods/PasswordlessLogin.ts - the only login flow that
 // logs an actual value a human needs to act on before the bot can proceed
 // (TOTP-with-secret is auto-filled and deliberately never logged; manual
 // TOTP/email code entry waits on a raw stdin prompt with no code the bot
 // itself knows, so there's nothing to surface for those).
-const LOGIN_NUMBER_RE = /^Please approve login and select number:\s*(\d+)$/;
+const LOGIN_NUMBER_RE =
+  /^(?:Please approve login and select number|请批准登录并选择数字):\s*(\d+)$/;
 const LOGIN_NUMBER_RESOLVED_RE =
-  /^(Approval detected|Login approved successfully|Login approval failed or timed out|Approval timeout after \d+ seconds!)$/;
+  /^(Approval detected|Login approved successfully|Login approval failed or timed out|Approval timeout after \d+ seconds!|检测到批准|登录批准成功|\d+ 秒后批准超时!|批准请求已过期；发送重试 \d+\/\d+)$/;
+const LOGIN_NUMBER_FAILED_ZH_RE = /^发生错误:\s[\s\S]*$/;
 
 // scripts/docker/run_daily.sh wraps the actual `npm start` in a flock-style
 // lockfile and echoes its own lifecycle lines directly to stdout (not
@@ -102,6 +123,8 @@ const TRIGGER_SKIPPED_RE =
 // "[POINTS] Earnable today | Mobile: unknown | Browser: 60 | App: pending mobile sign-in | <email> | locale: en-CA"
 const EARNABLE_RE =
   /^Earnable today\s\|\sMobile:\s([^|]+?)\s\|\sBrowser:\s([^|]+?)\s\|\sApp:\s([^|]+?)\s\|\s(\S+@\S+)\s/;
+const EARNABLE_ZH_RE =
+  /^今日可赚取\s\|\s移动端:\s([^|]+?)\s\|\s浏览器:\s([^|]+?)\s\|\sApp:\s([^|]+?)\s\|\s(\S+@\S+)\s/;
 const APP_POINTS_RE = /^App points available:\s*(\d+)$/;
 const numberOrNull = (v) => (/^\d+$/.test(v.trim()) ? Number(v) : null);
 // "Script finished" is printed right before the wrapper's natural exit
@@ -132,6 +155,8 @@ const WRAPPER_SCRIPT_FAILED_RE =
 // when RUN-END itself never gets logged.
 const CLUSTER_WORKER_EXIT_RE =
   /^Worker\s+(\d+)\s+exit\s+\|\s+Code:\s*(-?\d+|n\/a)\s+\|\s+Signal:\s*([^|]+)\s+\|\s+Active workers:\s*(\d+)$/;
+const CLUSTER_WORKER_EXIT_ZH_RE =
+  /^worker\s+(\d+)\s+退出\s+\|\s+代码:\s*(-?\d+|n\/a)\s+\|\s+信号:\s*([^|]+)\s+\|\s+活跃worker数:\s*(\d+)$/;
 
 // v5's Control API (src/control-api/processManager.js _finalize) logs the
 // final outcome of every run it launched - cron runs included, since
@@ -147,6 +172,10 @@ const CLUSTER_WORKER_EXIT_RE =
 // unlike the separate /status exit event, it needs no timing heuristics.
 const CONTROLLER_OUTCOME_RE =
   /^Run (completed|partial|interrupted|failed|cancelled) \((?:error: ([\s\S]*)|code (-?\d+|n\/a)(?: \/ signal (\S+))?)\)\.$/;
+// v4 reports an exit without the explicit v5 outcome. The store decides how
+// it relates to account results and the summary, rather than guessing here.
+const CONTROLLER_EXIT_RE =
+  /^Run finished \((?:error: ([\s\S]*)|code (-?\d+|n\/a)(?: \/ signal (\S+))?)\)\.$/;
 
 /**
  * v5 logs the account's reason as a JSON string (reason="...", with embedded
@@ -218,7 +247,7 @@ function parseLine(rawLine) {
 
   switch (title) {
     case "ACCOUNT-START": {
-      const am = ACCOUNT_START_RE.exec(message);
+      const am = ACCOUNT_START_RE.exec(message) || ACCOUNT_START_ZH_RE.exec(message);
       if (am)
         return {
           ...base,
@@ -232,8 +261,9 @@ function parseLine(rawLine) {
     // ACCOUNT-END, with an otherwise identical message.
     case "ACCOUNT-SKIP":
     case "ACCOUNT-END": {
-      const am = ACCOUNT_END_RE.exec(message);
+      const am = ACCOUNT_END_RE.exec(message) || ACCOUNT_END_ZH_RE.exec(message);
       if (am) {
+        const localizedFailure = message.startsWith("账户存在失败活动:");
         return {
           ...base,
           kind: "account-end",
@@ -244,14 +274,14 @@ function parseLine(rawLine) {
           durationSec: Number(am[5]),
           // v4's "Completed account:" line carries no status= and was only
           // ever logged for a successful account.
-          accountStatus: am[6] || "completed",
-          error: decodeReason(am[7]),
+          accountStatus: am[6] || (localizedFailure ? "failed" : "completed"),
+          error: decodeReason(am[7]) || (localizedFailure ? message : null),
           activityCounts: parseActivityCounts(am[8]),
         };
       }
       // v4: "Skipped account: <email> | reason=Fraud_UserWarning_BotScore_UX | ..."
       // (its Control API never parses this line, so the dashboard keeps it).
-      const sk = /^Skipped account: (\S+) \| reason=(\S+)/.exec(message);
+      const sk = ACCOUNT_SKIP_RE.exec(message) || ACCOUNT_SKIP_ZH_RE.exec(message);
       if (sk)
         return { ...base, kind: "account-skip-v4", email: sk[1].trim().toLowerCase(), reason: sk[2] };
       break;
@@ -273,13 +303,13 @@ function parseLine(rawLine) {
       };
     }
     case "ACCOUNT-ERROR": {
-      const am = ACCOUNT_ERR_RE.exec(message);
+      const am = ACCOUNT_ERR_RE.exec(message) || ACCOUNT_ERR_ZH_RE.exec(message);
       if (am)
         return { ...base, kind: "account-error", email: am[1], error: am[2] };
       return { ...base, kind: "account-error", email: null, error: message };
     }
     case "RUN-START": {
-      const am = RUN_START_RE.exec(message);
+      const am = RUN_START_RE.exec(message) || RUN_START_ZH_RE.exec(message);
       if (am) {
         return {
           ...base,
@@ -291,9 +321,22 @@ function parseLine(rawLine) {
       }
       break;
     }
+    case "RUN-SKIP": {
+      if (RUN_SKIP_ZH_RE.test(message)) {
+        // This path exits without an account roster or RUN-END summary.
+        return { ...base, kind: "run-skipped", reason: "completed-today" };
+      }
+      break;
+    }
     case "RUN-END": {
-      const am = RUN_END_RE.exec(message);
+      const original = RUN_END_RE.exec(message);
+      const am = original || RUN_END_ZH_RE.exec(message);
       if (am) {
+        const localizedOutcome = original
+          ? null
+          : message.startsWith("账户处理结束，存在失败活动")
+            ? "failed"
+            : "completed";
         return {
           ...base,
           kind: "run-end",
@@ -302,14 +345,14 @@ function parseLine(rawLine) {
           oldTotal: Number(am[3]),
           newTotal: Number(am[4]),
           runtimeMin: Number(am[5]),
-          // null on v4, whose RUN-END has no status=.
-          terminalStatus: am[6] || null,
+          // The localized v4 summary states whether any activities failed.
+          terminalStatus: am[6] || localizedOutcome,
         };
       }
       break;
     }
     case "ACCOUNT-DELAY": {
-      const am = ACCOUNT_DELAY_RE.exec(message);
+      const am = ACCOUNT_DELAY_RE.exec(message) || ACCOUNT_DELAY_ZH_RE.exec(message);
       if (am)
         return {
           ...base,
@@ -320,7 +363,7 @@ function parseLine(rawLine) {
       break;
     }
     case "REACT-PARSE": {
-      const protection = STREAK_PROTECTION_RE.exec(message);
+      const protection = STREAK_PROTECTION_RE.exec(message) || STREAK_PROTECTION_ZH_RE.exec(message);
       if (protection) {
         return {
           ...base,
@@ -346,7 +389,10 @@ function parseLine(rawLine) {
       const numMatch = LOGIN_NUMBER_RE.exec(message);
       if (numMatch)
         return { ...base, kind: "login-number", number: numMatch[1] };
-      if (LOGIN_NUMBER_RESOLVED_RE.test(message)) {
+      if (
+        LOGIN_NUMBER_RESOLVED_RE.test(message) ||
+        (base.level === "error" && LOGIN_NUMBER_FAILED_ZH_RE.test(message))
+      ) {
         return { ...base, kind: "login-number-resolved" };
       }
       break;
@@ -356,7 +402,7 @@ function parseLine(rawLine) {
       // account-resolution logic off `kind`, so the original FLOW title is
       // left intact.
       if (level.toLowerCase() === "error") {
-        const fm = FLOW_FAILED_RE.exec(message);
+        const fm = FLOW_FAILED_RE.exec(message) || FLOW_FAILED_ZH_RE.exec(message);
         if (fm) {
           return {
             ...base,
@@ -380,15 +426,25 @@ function parseLine(rawLine) {
           signal: cm[4] || null,
         };
       }
+      const exit = CONTROLLER_EXIT_RE.exec(message);
+      if (exit) {
+        return {
+          ...base,
+          kind: "controller-exit",
+          error: exit[1] || null,
+          code: exit[2] == null || exit[2] === "n/a" ? null : Number(exit[2]),
+          signal: exit[3] || null,
+        };
+      }
       break;
     }
     case "POINTS": {
-      const em = EARNABLE_RE.exec(message);
-      if (em && base.accountName) {
+      const em = EARNABLE_RE.exec(message) || EARNABLE_ZH_RE.exec(message);
+      if (em) {
         return {
           ...base,
           kind: "earnable",
-          email: base.accountName,
+          email: em[4].trim().toLowerCase(),
           mobile: numberOrNull(em[1]),
           browser: numberOrNull(em[2]),
           app: numberOrNull(em[3]),
@@ -396,7 +452,12 @@ function parseLine(rawLine) {
       }
       const ap = APP_POINTS_RE.exec(message);
       if (ap && base.accountName) {
-        return { ...base, kind: "earnable", email: base.accountName, app: Number(ap[1]) };
+        return {
+          ...base,
+          kind: "earnable",
+          email: base.accountName.includes("@") ? base.accountName.trim().toLowerCase() : null,
+          app: Number(ap[1]),
+        };
       }
       break;
     }
@@ -407,11 +468,11 @@ function parseLine(rawLine) {
       break;
     }
     case "TRIGGER": {
-      if (TRIGGER_SKIPPED_RE.test(message)) return wrapperSkippedEvent(dockerTs, clean);
+      if (TRIGGER_SKIPPED_RE.test(message)) return wrapperSkippedEvent(dockerTs, clean, message);
       break;
     }
     case "CLUSTER-WORKER-EXIT": {
-      const wm = CLUSTER_WORKER_EXIT_RE.exec(message);
+      const wm = CLUSTER_WORKER_EXIT_RE.exec(message) || CLUSTER_WORKER_EXIT_ZH_RE.exec(message);
       if (wm) {
         const code = wm[2].toLowerCase() === "n/a" ? null : Number(wm[2]);
         const rawSignal = wm[3].trim();
@@ -464,14 +525,14 @@ function parseLine(rawLine) {
  * Returns null for lines that don't match at all, or a 'generic' event for
  * wrapper lines that aren't one of the specific lifecycle events we track.
  */
-function wrapperSkippedEvent(dockerTs, clean) {
+function wrapperSkippedEvent(dockerTs, clean, message = clean) {
   return {
     ts: dockerTs,
     userName: "run_daily.sh",
     level: "warn",
     platform: "MAIN",
     title: "WRAPPER",
-    message: "已跳过定时运行：已有运行正在进行",
+    message,
     raw: clean,
     kind: "wrapper-run-skipped",
   };
